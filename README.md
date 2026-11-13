@@ -2,5 +2,5 @@
 Deploy: Coolify → Dockerfile, port 3000, domain https://audit.mahmoudbedier.com
 Persistent storage: /data
 Env:
-- AUDIT_USERS = mahmoud:Mahmoud:PASSWORD,ahmed:Ahmed:PASSWORD   (id:الاسم:الباسورد)
+- Users are managed inside the app (first visit creates the admin).
 - SESSION_SECRET = long random string

@@ -1,19 +1,22 @@
 <!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>audit — تسجيل الدخول</title>
 <style>
-body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0f1115;color:#e8eaed;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif}
-form{width:min(340px,90vw);background:#171a21;border:1px solid #262a33;border-radius:14px;padding:28px;display:grid;gap:14px}
-h1{margin:0 0 4px;font-size:22px}p{margin:0;color:#9aa0a6;font-size:14px}
-input{padding:11px 12px;border-radius:9px;border:1px solid #2c313b;background:#0f1115;color:inherit;font-size:15px}
-button{padding:11px;border:0;border-radius:9px;background:#3b82f6;color:#fff;font-size:15px;cursor:pointer}
-#err{color:#f87171;font-size:14px;min-height:18px}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f3f4f8;color:#1f2430;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif}
+form{width:min(360px,90vw);background:#fff;border:1px solid #e3e6ee;border-radius:14px;padding:28px;display:grid;gap:14px}
+h1{margin:0 0 4px;font-size:22px}p{margin:0;color:#6b7280;font-size:14px}
+input{padding:11px 12px;border-radius:9px;border:1px solid #d8dce5;font-size:15px}
+button{padding:11px;border:0;border-radius:9px;background:#2948c7;color:#fff;font-size:15px;cursor:pointer}
+#err{color:#c53030;font-size:14px;min-height:18px}.hide{display:none}
 </style></head><body>
-<form id="f"><h1>audit</h1><p>غرفة عمليات الحسابات الإعلانية</p>
-<input name="username" placeholder="اسم المستخدم" autocomplete="username" required>
+<form id="f"><h1>audit</h1><p id="sub">غرفة عمليات الحسابات الإعلانية</p>
+<input name="name" class="hide" placeholder="اسمك اللي هيظهر">
+<input name="username" placeholder="اسم المستخدم (إنجليزي)" autocomplete="username" required>
 <input name="password" type="password" placeholder="الباسورد" autocomplete="current-password" required>
-<button>دخول</button><div id="err"></div></form>
+<button id="btn">دخول</button><div id="err"></div></form>
 <script>
+let setup=false;
+fetch('/api/setup').then(r=>r.json()).then(j=>{ if(j.needsSetup){ setup=true; f.name.classList.remove('hide'); sub.textContent='أول مرة: اعمل حساب الأدمن'; btn.textContent='إنشاء حساب الأدمن'; f.password.autocomplete='new-password'; }});
 f.onsubmit=async e=>{e.preventDefault();err.textContent='';
- const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:f.username.value,password:f.password.value})});
+ const r=await fetch(setup?'/api/setup':'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:f.username.value,password:f.password.value,name:f.name.value})});
  if(r.ok) location.href='/'; else err.textContent=(await r.json().catch(()=>({}))).error||'حصلت مشكلة';};
 </script></body></html>

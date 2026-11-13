@@ -38,5 +38,6 @@
   let meP = null; const me = () => meP || (meP = api('/api/me'));
   const user = { id: async () => (await me()).id, me: async () => me(), can: async () => true, profiles: async () => api('/api/profiles') };
   window.claude = { use: async name => name === 'db' ? db : name === 'user' ? user : null };
+  me().then(u => { if (u.role === 'admin') { const run = () => { const l = document.getElementById('usersLink'); if (l) l.style.display = ''; else setTimeout(run, 200); }; run(); } }).catch(() => {});
   poll();
 })();

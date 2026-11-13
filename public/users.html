@@ -1,0 +1,65 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>audit — المستخدمين</title>
+<style>
+body{margin:0;background:#f3f4f8;color:#1f2430;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:24px 20px}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+h1{font-size:22px;margin:0}h2{font-size:17px;margin:0 0 12px}a{color:#2948c7}
+.card{background:#fff;border:1px solid #e3e6ee;border-radius:12px;padding:18px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+input,select{padding:9px 10px;border-radius:8px;border:1px solid #d8dce5;font-size:14px;width:100%;box-sizing:border-box}
+button{padding:9px 14px;border:0;border-radius:8px;background:#2948c7;color:#fff;font-size:14px;cursor:pointer}
+button.ghost{background:#eef1f8;color:#1f2430}button.danger{background:#fde8e8;color:#c53030}
+.clients{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.clients label{display:flex;gap:6px;align-items:center;background:#f3f4f8;padding:6px 10px;border-radius:20px;font-size:13px;cursor:pointer}
+.clients input{width:auto}
+.u{border-top:1px solid #eef0f4;padding:14px 0}.u:first-child{border-top:0;padding-top:0}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.muted{color:#6b7280;font-size:13px}
+.badge{font-size:12px;padding:2px 8px;border-radius:10px;background:#e8edff;color:#2948c7}
+#msg{min-height:20px;font-size:14px;margin-bottom:10px}
+</style></head><body><div class="wrap">
+<header><h1>المستخدمين</h1><a href="/">← رجوع للداشبورد</a></header>
+<div id="msg"></div>
+<div class="card"><h2>إضافة مستخدم</h2>
+ <div class="grid">
+  <input id="nName" placeholder="الاسم">
+  <input id="nId" placeholder="اسم المستخدم (إنجليزي)">
+  <input id="nPw" type="password" placeholder="الباسورد" autocomplete="new-password">
+  <select id="nRole"><option value="buyer">ميديا بايرز</option><option value="admin">أدمن (يشوف كل حاجة)</option></select>
+ </div>
+ <div class="muted" style="margin-top:12px">العملاء اللي يشوفهم:</div>
+ <div class="clients" id="nClients"></div>
+ <button id="add">إضافة</button>
+</div>
+<div class="card"><h2>المستخدمين الحاليين</h2><div id="list"></div></div>
+</div>
+<script>
+const $=id=>document.getElementById(id); let clients=[];
+async function api(url,opts={}){const r=await fetch(url,{headers:{'Content-Type':'application/json'},...opts}); if(r.status===401){location.href='/login.html';throw 0} const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||'حصلت مشكلة'); return j;}
+const msg=(t,ok)=>{$('msg').textContent=t;$('msg').style.color=ok?'#1f7a3d':'#c53030';};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function boxes(sel=[],role='buyer'){ if(!clients.length) return '<span class="muted">مفيش عملاء لسه. ضيفهم من صفحة الحسابات والعملاء.</span>';
+  return clients.map(c=>`<label><input type="checkbox" value="${esc(c.id)}" ${sel.includes(c.id)?'checked':''}>${esc(c.data.name||c.id)}</label>`).join(''); }
+const picked=el=>[...el.querySelectorAll('input:checked')].map(x=>x.value);
+async function load(){
+  const me=await api('/api/me'); if(me.role!=='admin'){document.body.innerHTML='<div class="wrap"><p>الصفحة دي للأدمن بس. <a href="/">رجوع</a></p></div>';return;}
+  clients=(await api('/api/query?col=clients')).docs.sort((a,b)=>(a.data.name||'').localeCompare(b.data.name||''));
+  $('nClients').innerHTML=boxes();
+  const users=await api('/api/users');
+  $('list').innerHTML=users.map(u=>`<div class="u" data-id="${esc(u.id)}">
+    <div class="row"><strong>${esc(u.name)}</strong><span class="muted">@${esc(u.id)}</span><span class="badge">${u.role==='admin'?'أدمن':'ميديا بايرز'}</span>${u.id===me.id?'<span class="muted">(انت)</span>':''}</div>
+    <div class="grid" style="margin-top:10px">
+      <input class="name" value="${esc(u.name)}" placeholder="الاسم">
+      <select class="role" ${u.id===me.id?'disabled':''}><option value="buyer" ${u.role!=='admin'?'selected':''}>ميديا بايرز</option><option value="admin" ${u.role==='admin'?'selected':''}>أدمن</option></select>
+      <input class="pw" type="password" placeholder="باسورد جديد (اختياري)" autocomplete="new-password">
+    </div>
+    <div class="clients">${u.role==='admin'?'<span class="muted">الأدمن بيشوف كل العملاء</span>':boxes(u.clients)}</div>
+    <div class="row"><button class="save">حفظ</button>${u.id===me.id?'':'<button class="danger del">حذف</button>'}</div></div>`).join('');
+}
+$('add').onclick=async()=>{ try{ await api('/api/users',{method:'POST',body:JSON.stringify({name:$('nName').value.trim(),id:$('nId').value.trim(),password:$('nPw').value,role:$('nRole').value,clients:picked($('nClients'))})});
+  ['nName','nId','nPw'].forEach(i=>$(i).value=''); msg('اتضاف المستخدم',1); load(); }catch(e){msg(e.message)} };
+$('list').onclick=async e=>{ const u=e.target.closest('.u'); if(!u) return; const id=u.dataset.id;
+  try{ if(e.target.classList.contains('save')){ await api('/api/users',{method:'PUT',body:JSON.stringify({id,name:u.querySelector('.name').value.trim(),role:u.querySelector('.role').value,password:u.querySelector('.pw').value||undefined,clients:picked(u.querySelector('.clients'))})}); msg('اتحفظ',1); load(); }
+       if(e.target.classList.contains('del')&&confirm('متأكد إنك عايز تمسح المستخدم ده؟')){ await api('/api/users',{method:'DELETE',body:JSON.stringify({id})}); msg('اتمسح',1); load(); } }catch(e){msg(e.message)} };
+load();
+</script></body></html>
