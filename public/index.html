@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>غرفة عمليات الحسابات الإعلانية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Readex+Pro:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: sticky top bar (client switcher + page tabs) → one of three pages: dashboard / accounts & clients / targets. Ink-blue ops console. */
+:root{
+  --bg:#f3f4f7; --surface:#ffffff; --ink:#141a2e; --muted:#5d6479; --line:#e1e4ec;
+  --accent:#2747c9; --accent-soft:#e7ecfd;
+  --good:#11804f; --good-soft:#e2f5ec; --warn:#a96300; --warn-soft:#fdf1dc; --bad:#c0362c; --bad-soft:#fde8e6;
+  --row-total:#f8edc9; --row-store:#d9e8f8; --row-alt:#fafbfd;
+  --f-display:"Readex Pro","IBM Plex Sans Arabic",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans Arabic",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1220; --surface:#161b2d; --ink:#e8ebf4; --muted:#9aa2b8; --line:#283049;
+    --accent:#7d97ff; --accent-soft:#1f2a52;
+    --good:#4fd09a; --good-soft:#123a2b; --warn:#f0b35a; --warn-soft:#3a2c12; --bad:#ff8077; --bad-soft:#3e1a18;
+    --row-total:#3a3418; --row-store:#17304a; --row-alt:#1a2034; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1220; --surface:#161b2d; --ink:#e8ebf4; --muted:#9aa2b8; --line:#283049;
+  --accent:#7d97ff; --accent-soft:#1f2a52;
+  --good:#4fd09a; --good-soft:#123a2b; --warn:#f0b35a; --warn-soft:#3a2c12; --bad:#ff8077; --bad-soft:#3e1a18;
+  --row-total:#3a3418; --row-store:#17304a; --row-alt:#1a2034; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14.5px;line-height:1.55}
+.wrap{max-width:1240px;margin:0 auto;padding:0 18px 60px;display:grid;gap:22px}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance}
+h1{font-size:19px;font-weight:700}
+h2{font-size:18px;font-weight:600}
+h3{font-size:15px;font-weight:600}
+.num{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}
+.muted{color:var(--muted)}
+.small{font-size:12.5px}
+.topbar{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin:0 -18px;padding:12px 18px 0;display:grid;gap:10px}
+.topbar .row{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:end;justify-content:space-between}
+.client-pick{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
+.client-pick select{font-family:var(--f-display);font-weight:600;font-size:16px;min-width:220px}
+nav.tabs{display:flex;gap:4px;overflow-x:auto}
+nav.tabs a{padding:9px 14px;border-bottom:3px solid transparent;color:var(--muted);text-decoration:none;font-weight:600;white-space:nowrap}
+nav.tabs a[aria-current="page"]{color:var(--accent);border-bottom-color:var(--accent)}
+nav.tabs a:hover{color:var(--ink)}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:end}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+section.block{display:grid;gap:12px}
+.view{display:grid;gap:26px}
+.block-head{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between}
+button{font:inherit;font-weight:600;font-size:13.5px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:7px 13px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+:root[data-theme="dark"] button.primary{color:#0e1220}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) button.primary{color:#0e1220}}
+button.ghost{background:transparent;border-color:transparent;color:var(--muted);padding:4px 8px}
+button.ghost:hover{color:var(--bad)}
+button.danger{color:var(--bad);border-color:var(--bad-soft)}
+button:disabled{opacity:.5;cursor:not-allowed}
+a.link{color:var(--accent);font-weight:600}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,select,textarea{font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 9px;min-width:0;width:100%}
+input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+textarea{min-height:110px;direction:ltr;font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+label.f{display:grid;gap:4px;font-size:12.5px;color:var(--muted);font-weight:500}
+.grid-form{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.grid-form .wide{grid-column:span 2}
+.form-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.new{background:var(--accent);color:#fff}
+.pill.good{background:var(--good-soft);color:var(--good)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.neutral{background:var(--accent-soft);color:var(--accent)}
+.plat{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.plat i{width:9px;height:9px;border-radius:3px;display:inline-block;flex:none}
+.notice{border-radius:10px;padding:10px 14px;font-size:13.5px}
+.notice.info{background:var(--accent-soft);color:var(--ink)}
+.notice.warn{background:var(--warn-soft);color:var(--ink)}
+.notice.bad{background:var(--bad-soft);color:var(--ink)}
+.hidden{display:none!important}
+.kpis{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.kpi{display:grid;gap:4px;align-content:start}
+.kpi .label{font-size:12.5px;color:var(--muted);font-weight:500}
+.kpi .val{font-family:var(--f-display);font-size:24px;font-weight:600}
+.kpi .sub{font-size:12.5px;color:var(--muted)}
+.progress-card{display:grid;gap:12px}
+.big-pct{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.big-pct .val{font-family:var(--f-display);font-size:44px;font-weight:700;line-height:1}
+.bar{position:relative;height:14px;border-radius:7px;background:var(--line)}
+.bar .fill{position:absolute;inset-block:0;inset-inline-start:0;border-radius:7px;background:var(--accent);max-width:100%}
+.bar .pace{position:absolute;top:-5px;bottom:-5px;width:2px;background:var(--ink);opacity:.7}
+.bar-legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12.5px;color:var(--muted)}
+.mini-bar{height:6px;border-radius:3px;background:var(--line);min-width:80px;position:relative}
+.mini-bar i{position:absolute;inset-block:0;inset-inline-start:0;border-radius:3px;background:var(--accent)}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:8px 12px;text-align:start;white-space:nowrap;border-bottom:1px solid var(--line)}
+thead th{background:var(--row-alt);font-weight:600;color:var(--muted);font-size:12.5px}
+td.n,th.n{text-align:end;font-variant-numeric:tabular-nums}
+td.n{direction:ltr}
+td input{min-width:80px}
+tr.total td{background:var(--row-total);font-weight:600}
+tr.store td{background:var(--row-store);font-weight:600}
+tr.sel td{background:var(--accent-soft)}
+td.date{font-weight:600;vertical-align:top;background:var(--row-alt);border-inline-end:1px solid var(--line)}
+tr.click{cursor:pointer}
+tr.click:hover td:not(.date){background:var(--accent-soft)}
+.total-line{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:12px 14px;border-radius:10px;background:var(--accent-soft);font-weight:600}
+.total-line .num{font-family:var(--f-display);font-size:17px}
+.filters{display:flex;flex-wrap:wrap;gap:8px}
+.filters select,.filters input{width:auto;min-width:130px}
+.log{display:grid;gap:14px}
+.log-day{display:grid;gap:8px}
+.log-day h3{font-size:13.5px;color:var(--muted)}
+.edit{display:grid;gap:8px;background:var(--surface);border:1px solid var(--line);border-inline-start:4px solid var(--line);border-radius:10px;padding:12px 14px}
+.edit.is-new{border-inline-start-color:var(--accent);box-shadow:0 0 0 1px var(--accent-soft)}
+.edit .row1{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+.edit .entity{font-weight:600}
+.edit .who{color:var(--muted);font-size:12.5px;margin-inline-start:auto;display:flex;gap:8px;align-items:center}
+.change{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:14px}
+.change .before{background:var(--bad-soft);color:var(--bad);border-radius:6px;padding:2px 8px;text-decoration:line-through;text-decoration-thickness:1px}
+.change .after{background:var(--good-soft);color:var(--good);border-radius:6px;padding:2px 8px;font-weight:600}
+.change .arrow{color:var(--muted)}
+.edit .why{font-size:13px;color:var(--muted)}
+.empty{padding:28px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:12px;display:grid;gap:10px;justify-items:center}
+details.panel>summary{cursor:pointer;font-weight:600;list-style:none;display:inline-flex;gap:6px;align-items:center}
+details.panel>summary::-webkit-details-marker{display:none}
+details.panel[open]>summary{margin-bottom:12px}
+.two{display:grid;gap:14px;grid-template-columns:1fr 1fr}
+.three{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.conn{display:grid;gap:10px;align-content:start}
+.conn-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.acc-list{display:grid;gap:6px;max-height:420px;overflow:auto}
+.acc{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px}
+.acc .meta{display:grid;gap:1px;min-width:0}
+.acc .meta b{overflow-wrap:anywhere;font-weight:600}
+.acc .meta span{font-size:12px;color:var(--muted);direction:ltr;text-align:end}
+.sync-log{display:grid;gap:4px;font-size:13px}
+@media (max-width:760px){.two{grid-template-columns:1fr}.grid-form .wide{grid-column:auto}}
+.toast{position:fixed;bottom:18px;inset-inline-start:18px;background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:9px;font-size:13.5px;z-index:9}
+@media (prefers-reduced-motion:no-preference){.bar .fill{transition:width .5s ease}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="topbar">
+  <div class="row">
+    <div class="client-pick">
+      <label class="f" for="clientSel">العميل<select id="clientSel"><option value="">—</option></select></label>
+      <label class="f" for="month" id="monthWrap">الشهر<select id="month"></select></label>
+    </div>
+    <div style="display:grid;gap:2px;justify-items:end">
+      <h1>غرفة عمليات الحسابات الإعلانية</h1>
+      <div class="muted small" id="whoami">جاري التحميل…</div>
+    </div>
+  </div>
+  <nav class="tabs" aria-label="صفحات">
+    <a href="#dashboard" data-view="dashboard">الداشبورد</a>
+    <a href="#accounts" data-view="accounts">الحسابات والعملاء</a>
+    <a href="#targets" data-view="targets">التارجت</a>
+  </nav>
+</div>
+
+<div id="status" class="notice info hidden"></div>
+
+<!-- ================= DASHBOARD ================= -->
+<div class="view" id="view-dashboard">
+  <div id="noClient" class="empty hidden">
+    <span>مفيش عملاء لسه. ابدأ بإضافة عميل واربط حساباته.</span>
+    <a class="link" href="#accounts">روح لصفحة الحسابات والعملاء</a>
+  </div>
+
+  <section class="block" id="target">
+    <div class="block-head"><h2>التارجت الشهري</h2><a class="link" href="#targets">تعديل التارجت</a></div>
+    <div id="targetBody"></div>
+  </section>
+
+  <section class="block" id="required">
+    <div class="block-head">
+      <h2>المطلوب للوصول للتارجت</h2>
+      <div class="controls" id="roasModeWrap">
+        <label class="f" for="roasMode">احسب الصرف على<select id="roasMode"><option value="current">ROAS الحالي للشهر</option><option value="target">ROAS المستهدف</option></select></label>
+      </div>
+    </div>
+    <div id="requiredBody"></div>
+  </section>
+
+  <section class="block" id="edits">
+    <div class="block-head">
+      <h2>سجل التعديلات على الحسابات</h2>
+      <div class="controls"><span id="newCount"></span><button id="markSeen" class="hidden">تم الاطلاع على الجديد</button></div>
+    </div>
+    <details class="panel card" id="editFormPanel">
+      <summary>+ سجّل تعديل جديد</summary>
+      <form id="editForm" class="grid-form" autocomplete="off">
+        <label class="f" for="eAt">وقت التعديل<input id="eAt" type="datetime-local" required></label>
+        <label class="f" for="ePlat">المنصة<select id="ePlat" required></select></label>
+        <label class="f" for="eAcc">الحساب<select id="eAcc"><option value="">—</option></select></label>
+        <label class="f" for="eLevel">المستوى<select id="eLevel">
+          <option>Campaign</option><option>Ad set / Ad group</option><option>Ad</option><option>Account</option><option>Catalog / Pixel</option>
+        </select></label>
+        <label class="f" for="eType">نوع التعديل<select id="eType">
+          <option>Budget</option><option>Bid / Cost cap</option><option>Status (On/Off)</option><option>Targeting</option><option>Creative</option><option>Optimization event</option><option>Placement</option><option>Schedule</option><option>New launch</option><option>Other</option>
+        </select></label>
+        <label class="f wide" for="eEntity">اسم الكامبين / الأد سيت / الإعلان<input id="eEntity" required placeholder="مثال: Br_SKU_ZDS007_MAX_Bid_7d"></label>
+        <label class="f" for="eBefore">الوضع قبل التعديل<input id="eBefore" required placeholder="مثال: 500 SAR/day"></label>
+        <label class="f" for="eAfter">بعد التعديل<input id="eAfter" required placeholder="مثال: 800 SAR/day"></label>
+        <label class="f wide" for="eWhy">السبب / ملاحظة للزميل<input id="eWhy" placeholder="مثال: ROAS 6+ آخر 3 أيام"></label>
+        <div class="form-actions wide" style="align-self:end"><button class="primary" type="submit" id="eSubmit">حفظ التعديل</button></div>
+      </form>
+    </details>
+    <div class="filters">
+      <select id="fPlat" aria-label="فلتر المنصة"></select>
+      <select id="fWho" aria-label="فلتر الميديا باير"><option value="">كل الميديا بايرز</option></select>
+      <select id="fType" aria-label="فلتر نوع التعديل"><option value="">كل الأنواع</option></select>
+      <input id="fQ" type="search" placeholder="بحث باسم الكامبين…" aria-label="بحث">
+    </div>
+    <div class="log" id="log"></div>
+  </section>
+
+  <section class="block" id="daily">
+    <div class="block-head">
+      <h2>الأداء اليومي حسب المنصة</h2>
+      <div class="controls">
+        <button class="primary" id="syncBtn">سحب الأرقام من المنصات</button>
+        <button id="toggleEntry">+ إدخال يدوي</button>
+        <button id="togglePaste">لصق من شيت</button>
+      </div>
+    </div>
+    <div id="syncBox" class="card hidden"><div class="sync-log" id="syncLog"></div></div>
+
+    <div class="card hidden" id="entryCard">
+      <div class="two">
+        <div style="display:grid;gap:10px">
+          <h3>أرقام منصة</h3>
+          <div class="grid-form">
+            <label class="f" for="dDate">التاريخ<input id="dDate" type="date"></label>
+            <label class="f" for="dPlat">المنصة<select id="dPlat"></select></label>
+            <label class="f" for="dSpend">Spent<input id="dSpend" type="number" step="any" min="0"></label>
+            <label class="f" for="dSales">Sales<input id="dSales" type="number" step="any" min="0"></label>
+            <label class="f" for="dOrders">Orders<input id="dOrders" type="number" step="1" min="0"></label>
+            <label class="f" for="dVisits">الزيارات<input id="dVisits" type="number" step="1" min="0"></label>
+          </div>
+          <div class="form-actions"><button class="primary" id="saveDaily">حفظ</button><button class="ghost" id="delDaily">حذف السطر</button></div>
+        </div>
+        <div style="display:grid;gap:10px;align-content:start">
+          <h3>Total Store لليوم</h3>
+          <div class="grid-form">
+            <label class="f" for="sDate">التاريخ<input id="sDate" type="date"></label>
+            <label class="f" for="sSales">مبيعات المتجر<input id="sSales" type="number" step="any" min="0"></label>
+            <label class="f" for="sOrders">أوردرات المتجر<input id="sOrders" type="number" step="1" min="0"></label>
+          </div>
+          <div class="form-actions"><button class="primary" id="saveStore">حفظ</button></div>
+          <p class="muted small" style="margin:0">اضغط على أي سطر في الجدول لتعديله.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card hidden" id="pasteCard">
+      <div style="display:grid;gap:10px">
+        <p class="small muted" style="margin:0">كل سطر: <span class="num">Date, Platform, Spent, Sales, Orders, Visits</span>. لسطر المتجر اكتب المنصة <span class="num">Store</span>.</p>
+        <textarea id="pasteBox" placeholder="2026-10-06	Snapchat	4390	15056	47	1920&#10;2026-10-06	Store	0	41000	140"></textarea>
+        <div class="form-actions"><button class="primary" id="doPaste">استيراد</button><span class="small muted" id="pasteMsg"></span></div>
+      </div>
+    </div>
+
+    <h3>إجمالي الشهر حسب المنصة</h3>
+    <div class="tbl-wrap"><table id="monthTbl"></table></div>
+    <div id="monthTotal"></div>
+    <h3 style="margin-top:6px">Breakdown يومي</h3>
+    <div class="tbl-wrap"><table id="dailyTbl"></table></div>
+  </section>
+</div>
+
+<!-- ================= ACCOUNTS ================= -->
+<div class="view hidden" id="view-accounts">
+  <section class="block">
+    <div class="block-head"><h2>العملاء</h2></div>
+    <div class="card" style="display:grid;gap:14px">
+      <div class="grid-form">
+        <label class="f wide" for="newClientName">إضافة عميل جديد<input id="newClientName" placeholder="اسم العميل"></label>
+        <label class="f" for="newClientCur">عملة التقارير<select id="newClientCur"><option>SAR</option><option>EGP</option><option>AED</option><option>USD</option><option>KWD</option><option>QAR</option></select></label>
+        <div class="form-actions" style="align-self:end"><button class="primary" id="addClient">إضافة</button></div>
+      </div>
+      <div id="clientEdit" class="grid-form hidden" style="border-top:1px solid var(--line);padding-top:14px">
+        <label class="f wide" for="cName">اسم العميل المختار<input id="cName"></label>
+        <label class="f" for="cCur">عملة التقارير<select id="cCur"><option>SAR</option><option>EGP</option><option>AED</option><option>USD</option><option>KWD</option><option>QAR</option></select></label>
+        <div class="form-actions" style="align-self:end"><button id="saveClient">حفظ</button><button class="danger" id="delClient">حذف العميل</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="block-head"><h2 id="linkedTitle">حسابات العميل</h2></div>
+    <p class="muted small" style="margin:0">الحسابات اللي هنا بس هي اللي أرقامها بتدخل في تقارير العميل ده. لو حساب بعملة مختلفة عن عملة التقارير، حط سعر التحويل.</p>
+    <div class="tbl-wrap"><table id="linkedTbl"></table></div>
+    <details class="panel card">
+      <summary>+ إضافة حساب يدويًا (Google Ads أو أي حساب مش ظاهر تحت)</summary>
+      <div class="grid-form">
+        <label class="f" for="mPlat">المنصة<select id="mPlat"></select></label>
+        <label class="f" for="mId">رقم الحساب<input id="mId" dir="ltr"></label>
+        <label class="f wide" for="mName">اسم الحساب<input id="mName"></label>
+        <label class="f" for="mCur">عملة الحساب<select id="mCur"><option>SAR</option><option>EGP</option><option>AED</option><option>USD</option><option>KWD</option><option>QAR</option></select></label>
+        <div class="form-actions" style="align-self:end"><button class="primary" id="addManualAcc">إضافة</button></div>
+      </div>
+    </details>
+  </section>
+
+  <section class="block">
+    <div class="block-head"><h2>ربط حساباتك الإعلانية</h2></div>
+    <div id="mcpNotice" class="notice warn hidden"></div>
+    <div class="three">
+      <div class="card conn" data-plat="meta"></div>
+      <div class="card conn" data-plat="tiktok"></div>
+      <div class="card conn" data-plat="snapchat"></div>
+    </div>
+  </section>
+</div>
+
+<!-- ================= TARGETS ================= -->
+<div class="view hidden" id="view-targets">
+  <section class="block">
+    <div class="block-head"><h2 id="tTitle">تارجت الشهر</h2></div>
+    <div class="card">
+      <div class="grid-form">
+        <label class="f" for="tMonth">الشهر<input id="tMonth" type="month"></label>
+        <label class="f" for="tSales">تارجت المبيعات<input id="tSales" type="number" min="0" step="1" inputmode="numeric"></label>
+        <label class="f" for="tBudget">ميزانية الصرف (اختياري)<input id="tBudget" type="number" min="0" step="1" inputmode="numeric"></label>
+        <label class="f" for="tRoas">ROAS مستهدف (اختياري)<input id="tRoas" type="number" min="0" step="0.01" inputmode="decimal"></label>
+        <label class="f" for="tBasis">التارجت محسوب على<select id="tBasis"><option value="store">مبيعات المتجر (Total Store)</option><option value="platform">مبيعات المنصات (Total platform)</option></select></label>
+        <label class="f" for="tOrders">تارجت الأوردرات (اختياري)<input id="tOrders" type="number" min="0" step="1"></label>
+      </div>
+      <div class="form-actions" style="margin-top:12px">
+        <button class="primary" id="saveTarget">حفظ التارجت</button>
+        <button class="danger" id="delTarget">حذف تارجت الشهر</button>
+        <span class="small muted" id="tMsg"></span>
+      </div>
+    </div>
+  </section>
+  <section class="block">
+    <h2>كل التارجتس</h2>
+    <div class="tbl-wrap"><table id="targetsTbl"></table></div>
+  </section>
+</div>
+
+</div>
+<div id="toast" class="toast hidden" role="status"></div>
+
+<script src="/shim.js"></script>
+<script>
+(function(){
+const PLATFORMS = [
+  {key:"google",   label:"Google",            color:"#1a9e55"},
+  {key:"meta",     label:"Meta / Instagram",  color:"#d6337f", server:"Meta Ads"},
+  {key:"snapchat", label:"Snapchat",          color:"#e6c300", server:"snap"},
+  {key:"tiktok",   label:"TikTok",            color:"#25c4cf", server:"TikTok"},
+  {key:"apple",    label:"Apple Search Ads",  color:"#8a8f9c"}
+];
+const PMAP = Object.fromEntries(PLATFORMS.map(p=>[p.key,p]));
+const ALIASES = {google:"google","google ads":"google",meta:"meta",instagram:"meta",facebook:"meta",fb:"meta",ig:"meta",snapchat:"snapchat",snap:"snapchat",tiktok:"tiktok","tik tok":"tiktok",apple:"apple","apple search ads":"apple",asa:"apple"};
+const MONTHS_AR = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+const MONTHS_EN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const FX_DEFAULT = {SAR:{USD:3.75,AED:1.021,EGP:0.0759,KWD:12.2,QAR:1.03},EGP:{USD:49.4,SAR:13.17,AED:13.45},USD:{SAR:0.2667,EGP:0.0202,AED:0.2723}};
+const CONV_ID = Array.from({length:20},()=>"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random()*62)]).join("");
+
+const $ = id => document.getElementById(id);
+const state = {db:null,user:null,mcp:null,uid:null,canWrite:false,clients:[],cid:null,daily:[],store:[],edits:[],targets:{},lastSeen:null,month:null,names:{},view:"dashboard",unsubs:[],loadedClients:false,found:{}};
+
+// ---------- utils ----------
+const fmt0 = n => (n==null||!isFinite(n)) ? "-" : Math.round(n).toLocaleString("en-US");
+const fmt2 = n => (n==null||!isFinite(n)) ? "-" : n.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const pct  = (n,d=2) => (n==null||!isFinite(n)) ? "-" : (n*100).toFixed(d)+"%";
+const div  = (a,b) => (b && isFinite(a) && isFinite(b)) ? a/b : null;
+const el = (tag, attrs={}, ...kids) => { const e=document.createElement(tag); for(const [k,v] of Object.entries(attrs)){ if(k==="class") e.className=v; else if(k==="text") e.textContent=v; else if(v!==undefined&&v!==null&&v!==false) e.setAttribute(k,v);} for(const c of kids){ if(c==null||c===false) continue; e.append(c.nodeType?c:document.createTextNode(c)); } return e; };
+const platChip = key => { const p=PMAP[key]||{label:key,color:"#999"}; const s=el("span",{class:"plat"}); const i=el("i"); i.style.background=p.color; s.append(i, p.label); return s; };
+const dayLabel = iso => { const [y,m,d]=iso.split("-").map(Number); return `${d} ${MONTHS_EN[m-1]} ${y}`; };
+const monthLabel = ym => { const [y,m]=ym.split("-").map(Number); return `${MONTHS_AR[m-1]} ${y}`; };
+const daysIn = ym => { const [y,m]=ym.split("-").map(Number); return new Date(y,m,0).getDate(); };
+const pad = n => String(n).padStart(2,"0");
+const isoOf = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const todayISO = () => isoOf(new Date());
+const addDays = (iso,n) => { const [y,m,d]=iso.split("-").map(Number); return isoOf(new Date(y,m-1,d+n)); };
+const nowLocalInput = () => { const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,16); };
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.remove("hidden"); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.add("hidden"),2800); }
+function status(msg,kind="info"){ const s=$("status"); if(!msg){s.classList.add("hidden");return;} s.className="notice "+kind; s.textContent=msg; }
+const nameOf = id => id===state.uid ? "أنت" : (state.names[id]||"زميل");
+const client = () => state.clients.find(c=>c.id===state.cid)||null;
+const cur = () => client()?.currency || "SAR";
+const slug = s => (s||"").toString().replace(/[^A-Za-z0-9_\-.~:@+]/g,"-").slice(0,60);
+const lsGet = k => { try{ return localStorage.getItem(k); }catch(_){ return null; } };
+const lsSet = (k,v) => { try{ localStorage.setItem(k,v); }catch(_){} };
+
+function fillPlatSelect(sel, withAll){ sel.innerHTML=""; if(withAll) sel.append(el("option",{value:""},"كل المنصات")); for(const p of PLATFORMS) sel.append(el("option",{value:p.key},p.label)); }
+fillPlatSelect($("ePlat")); fillPlatSelect($("dPlat")); fillPlatSelect($("fPlat"),true); fillPlatSelect($("mPlat"));
+for(const o of $("eType").options) $("fType").append(el("option",{value:o.value},o.value));
+$("eAt").value = nowLocalInput(); $("dDate").value = todayISO(); $("sDate").value = todayISO();
+
+// ---------- routing ----------
+function route(){
+  const v = (location.hash||"#dashboard").slice(1);
+  state.view = ["dashboard","accounts","targets"].includes(v) ? v : "dashboard";
+  for(const name of ["dashboard","accounts","targets"]) $("view-"+name).classList.toggle("hidden", name!==state.view);
+  document.querySelectorAll("nav.tabs a").forEach(a=>a.setAttribute("aria-current", a.dataset.view===state.view?"page":"false"));
+  $("monthWrap").classList.toggle("hidden", state.view==="accounts");
+  renderAll();
+}
+window.addEventListener("hashchange", route);
+
+// ---------- client selection ----------
+function renderClientSelect(){
+  const sel=$("clientSel"); sel.innerHTML="";
+  if(!state.clients.length){ sel.append(el("option",{value:""}, state.loadedClients?"مفيش عملاء":"جاري التحميل…")); sel.disabled=true; return; }
+  sel.disabled=false;
+  for(const c of [...state.clients].sort((a,b)=>(a.name||"").localeCompare(b.name||"","ar"))) sel.append(el("option",{value:c.id},c.name||c.id));
+  sel.value=state.cid||"";
+}
+$("clientSel").addEventListener("change",e=>selectClient(e.target.value));
+function selectClient(id){
+  if(id===state.cid) return;
+  state.cid=id; lsSet("ops.client",id||"");
+  state.month=null; state.daily=[]; state.store=[]; state.edits=[]; state.targets={};
+  subscribeClient(); renderAll();
+}
+
+// ---------- data shaping ----------
+function monthsAvailable(){
+  const set = new Set([todayISO().slice(0,7)]);
+  for(const r of state.daily) if(r.date) set.add(r.date.slice(0,7));
+  for(const r of state.store) if(r.date) set.add(r.date.slice(0,7));
+  for(const k of Object.keys(state.targets)) set.add(k);
+  if(state.month) set.add(state.month);
+  return [...set].sort().reverse();
+}
+function latestDataMonth(){ const ds=state.daily.map(r=>r.date).filter(Boolean).sort(); return ds.length?ds[ds.length-1].slice(0,7):todayISO().slice(0,7); }
+function monthData(ym){
+  const rows = state.daily.filter(r=>r.date && r.date.startsWith(ym));
+  const store = state.store.filter(r=>r.date && r.date.startsWith(ym));
+  const dates = [...new Set([...rows.map(r=>r.date), ...store.map(r=>r.date)])].sort();
+  const byPlat = {};
+  for(const r of rows){ const b=byPlat[r.platform]||(byPlat[r.platform]={spend:0,sales:0,orders:0,visits:0}); b.spend+=+r.spend||0; b.sales+=+r.sales||0; b.orders+=+r.orders||0; b.visits+=+r.visits||0; }
+  const tot = {spend:0,sales:0,orders:0,visits:0};
+  for(const b of Object.values(byPlat)){ tot.spend+=b.spend; tot.sales+=b.sales; tot.orders+=b.orders; tot.visits+=b.visits; }
+  const storeTot = {sales:0,orders:0,days:store.length};
+  for(const s of store){ storeTot.sales+=+s.sales||0; storeTot.orders+=+s.orders||0; }
+  const storeDays = new Set(store.map(s=>s.date));
+  const spendOnStoreDays = rows.filter(r=>storeDays.has(r.date)).reduce((a,r)=>a+(+r.spend||0),0);
+  return {rows,store,dates,byPlat,tot,storeTot,spendOnStoreDays,lastDate:dates[dates.length-1]||null};
+}
+function basisNumbers(md, t){
+  const basis = t?.basis || "store";
+  if(basis==="store" && md.storeTot.days>0) return {basis:"store", sales:md.storeTot.sales, orders:md.storeTot.orders, roas:div(md.storeTot.sales, md.spendOnStoreDays), aov:div(md.storeTot.sales, md.storeTot.orders)};
+  return {basis:"platform", sales:md.tot.sales, orders:md.tot.orders, roas:div(md.tot.sales, md.tot.spend), aov:div(md.tot.sales, md.tot.orders), fellBack: basis==="store"};
+}
+function elapsedDays(ym, md){
+  const today=todayISO();
+  if(md.lastDate) return Number(md.lastDate.slice(8,10));
+  if(today.startsWith(ym)) return Math.max(Number(today.slice(8,10))-1,0);
+  return today>ym ? daysIn(ym) : 0;
+}
+
+// ---------- month select ----------
+function renderMonthSelect(){
+  const sel=$("month"), months=monthsAvailable();
+  if(!state.month) state.month = latestDataMonth();
+  sel.innerHTML=""; for(const m of months) sel.append(el("option",{value:m},monthLabel(m)));
+  sel.value=state.month;
+}
+$("month").addEventListener("change",e=>{state.month=e.target.value; renderAll();});
+
+// ---------- dashboard: target ----------
+function renderTarget(){
+  const body=$("targetBody"); body.innerHTML="";
+  const ym=state.month, t=state.targets[ym], md=monthData(ym);
+  const dim=daysIn(ym), elapsed=elapsedDays(ym,md), remainingDays=Math.max(dim-elapsed,0);
+  if(!t || !t.sales){
+    body.append(el("div",{class:"empty"}, el("span",{},`مفيش تارجت لـ ${client()?.name||"العميل"} في ${monthLabel(ym)}.`), el("a",{class:"link",href:"#targets"},"حدد التارجت")));
+    return;
+  }
+  const b=basisNumbers(md,t), C=cur();
+  const achievedPct = div(b.sales,t.sales)||0, pacePct = elapsed/dim;
+  const forecast = elapsed ? b.sales/elapsed*dim : 0, forecastPct = div(forecast,t.sales)||0;
+  const onTrack = achievedPct >= pacePct;
+  const prog = el("div",{class:"card progress-card",id:"targetProgress"});
+  prog.append(el("div",{class:"big-pct"},
+    el("span",{class:"val num"},pct(achievedPct,1)),
+    el("span",{class:"muted"},`من تارجت ${monthLabel(ym)}`),
+    el("span",{class:"pill "+(onTrack?"good":(achievedPct>=pacePct*0.85?"warn":"bad"))}, onTrack?"ماشيين قبل الوقت":"متأخرين عن الوقت")));
+  const bar=el("div",{class:"bar",role:"img","aria-label":`تحقق ${pct(achievedPct,1)} والوقت المنقضي ${pct(pacePct,0)}`});
+  const fill=el("div",{class:"fill"}); fill.style.width=Math.min(achievedPct*100,100)+"%";
+  if(!onTrack) fill.style.background = achievedPct>=pacePct*0.85 ? "var(--warn)" : "var(--bad)";
+  const pace=el("div",{class:"pace"}); pace.style.insetInlineStart=`calc(${Math.min(pacePct*100,100)}% - 1px)`;
+  bar.append(fill,pace);
+  prog.append(bar, el("div",{class:"bar-legend"},
+    el("span",{},"الخط الأسود = المفروض نكون فين حسب الأيام المنقضية (",el("span",{class:"num"},pct(pacePct,0)),")"),
+    el("span",{},`بيانات حتى ${md.lastDate?dayLabel(md.lastDate):"—"} · فاضل ${remainingDays} يوم`)));
+  if(b.fellBack) prog.append(el("div",{class:"notice warn small"},"مفيش أرقام Total Store للشهر ده، فالحساب ماشي على مبيعات المنصات مؤقتًا."));
+  body.append(prog);
+  const kpis=el("div",{class:"kpis"});
+  const kpi=(label,val,sub)=>{const k=el("div",{class:"card kpi"},el("span",{class:"label"},label),el("span",{class:"val num"},val)); if(sub) k.append(el("span",{class:"sub"},sub)); return k;};
+  kpis.append(
+    kpi("التارجت", `${fmt0(t.sales)} ${C}`, b.basis==="store"?"على مبيعات المتجر":"على مبيعات المنصات"),
+    kpi("المحقق", `${fmt0(b.sales)} ${C}`, `${fmt0(b.orders)} أوردر`+(t.orders?` من ${fmt0(t.orders)}`:"")+` · AOV ${fmt2(b.aov)}`),
+    kpi("المتوقع آخر الشهر بنفس المعدل", `${fmt0(forecast)} ${C}`, pct(forecastPct,1)+" من التارجت"),
+    kpi("الصرف", `${fmt0(md.tot.spend)} ${C}`, t.budget ? `${pct(div(md.tot.spend,t.budget),1)} من ميزانية ${fmt0(t.budget)}` : "مفيش ميزانية محددة"),
+    kpi("ROAS", fmt2(b.roas), t.roas ? `المستهدف ${fmt2(t.roas)}` : (b.basis==="store"?"Store ROAS":"Platform ROAS")));
+  body.append(kpis);
+}
+
+// ---------- dashboard: required ----------
+function renderRequired(){
+  const body=$("requiredBody"); body.innerHTML="";
+  const ym=state.month, t=state.targets[ym], md=monthData(ym), C=cur();
+  $("roasModeWrap").classList.toggle("hidden", !(t&&t.roas));
+  if(!t || !t.sales){ body.append(el("div",{class:"empty"},"حدد التارجت الأول عشان يظهر المطلوب صرفه وبيعه.")); return; }
+  const b=basisNumbers(md,t), dim=daysIn(ym), elapsed=elapsedDays(ym,md), remDays=Math.max(dim-elapsed,0);
+  const remSales=Math.max(t.sales-b.sales,0);
+  if(remSales<=0){ body.append(el("div",{class:"notice info"},"وصلنا للتارجت. أي مبيعات إضافية فوق المستهدف.")); return; }
+  if(remDays===0){ body.append(el("div",{class:"notice bad"},`الشهر خلص وفاضل ${fmt0(remSales)} ${C} من التارجت.`)); return; }
+  const mode = ($("roasMode").value==="target" && t.roas) ? "target" : "current";
+  const roas = mode==="target" ? t.roas : b.roas;
+  if(!roas){ body.append(el("div",{class:"notice warn"},"مفيش صرف كفاية في الشهر عشان نحسب ROAS. اسحب الأرقام أو أدخلها الأول.")); return; }
+  const reqSpend = remSales/roas, remBudget = t.budget ? t.budget - md.tot.spend : null, aov=b.aov;
+  const tbl=el("table",{id:"reqTbl"});
+  tbl.append(el("thead",{},el("tr",{},el("th",{},"البند"),el("th",{class:"n"},"إجمالي المتبقي"),el("th",{class:"n"},`يوميًا (${remDays} يوم)`))));
+  const tb=el("tbody");
+  const row=(label,total,daily)=>tb.append(el("tr",{},el("td",{},label),el("td",{class:"n"},total),el("td",{class:"n"},daily)));
+  row(`المبيعات المطلوبة (${C})`, fmt0(remSales), fmt0(div(remSales,remDays)));
+  row(`الصرف المطلوب على ROAS ${fmt2(roas)} (${C})`, fmt0(reqSpend), fmt0(div(reqSpend,remDays)));
+  row(`الأوردرات المطلوبة (AOV ${fmt0(aov)})`, fmt0(div(remSales,aov)), fmt2(div(div(remSales,aov),remDays)));
+  if(t.orders) row("الأوردرات المتبقية من تارجت الأوردرات", fmt0(Math.max(t.orders-b.orders,0)), fmt2(div(Math.max(t.orders-b.orders,0),remDays)));
+  if(remBudget!=null) row(`الميزانية المتبقية (${C})`, fmt0(remBudget), fmt0(div(remBudget,remDays)));
+  tbl.append(tb); body.append(el("div",{class:"tbl-wrap"},tbl));
+  if(remBudget!=null){
+    const gap=reqSpend-remBudget;
+    body.append(el("div",{class:"notice "+(gap>0?"bad":"info")}, gap>0
+      ? `الميزانية المتبقية مش كفاية: محتاجين ${fmt0(gap)} ${C} زيادة، أو نرفع الـ ROAS لـ ${fmt2(remSales/remBudget)} عشان نوصل بنفس الميزانية.`
+      : `الميزانية المتبقية تكفي ويفضل منها ${fmt0(-gap)} ${C} على الـ ROAS ده.`));
+  }
+  const plats = Object.entries(md.byPlat).filter(([,v])=>v.spend>0);
+  if(plats.length){
+    const factor = mode==="target" ? div(t.roas, div(md.tot.sales,md.tot.spend)) : (b.basis==="store" ? div(b.sales,md.tot.sales) : 1);
+    body.append(el("h3",{},"توزيع المطلوب على المنصات (بنفس نسب الصرف الحالية)"));
+    const pt=el("table",{id:"reqPlatTbl"});
+    pt.append(el("thead",{},el("tr",{},el("th",{},"المنصة"),el("th",{class:"n"},"% من الصرف"),el("th",{class:"n"},"ROAS المنصة"),el("th",{class:"n"},"صرف مطلوب"),el("th",{class:"n"},"صرف يومي"),el("th",{class:"n"},"مبيعات متوقعة"))));
+    const ptb=el("tbody"); let sumSpend=0,sumSales=0,sumDaily=0;
+    plats.sort((a,b)=>b[1].spend-a[1].spend);
+    for(const [k,v] of plats){
+      const share=v.spend/md.tot.spend, sp=reqSpend*share, pr=div(v.sales,v.spend), exp=sp*(pr||0)*(factor||1);
+      sumSpend+=sp; sumSales+=exp; sumDaily+=div(sp,remDays)||0;
+      ptb.append(el("tr",{},el("td",{},platChip(k)),el("td",{class:"n"},pct(share,1)),el("td",{class:"n"},fmt2(pr)),el("td",{class:"n"},fmt0(sp)),el("td",{class:"n"},fmt0(div(sp,remDays))),el("td",{class:"n"},fmt0(exp))));
+    }
+    pt.append(ptb); body.append(el("div",{class:"tbl-wrap"},pt));
+    body.append(el("div",{class:"total-line"},el("span",{},"الإجمالي"),el("span",{},"صرف ",el("span",{class:"num"},fmt0(sumSpend))," · يومي ",el("span",{class:"num"},fmt0(sumDaily))," · مبيعات ",el("span",{class:"num"},fmt0(sumSales))," "+C)));
+  }
+}
+$("roasMode").addEventListener("change",renderRequired);
+
+// ---------- dashboard: daily ----------
+const COLS=[["Spent","n"],["Sales","n"],["Order","n"],["Roas","n"],["cpa%","n"],["AOV","n"],["الزيارات","n"],["معدل التحويل","n"]];
+const metricCells = (spend,sales,orders,visits,hasVisits=true) => [fmt0(spend), fmt0(sales), fmt0(orders), sales&&spend?fmt2(sales/spend):"-", sales?pct(div(spend,sales)):"-", orders?fmt2(div(sales,orders)):"-", hasVisits&&visits?fmt0(visits):"-", hasVisits&&visits?pct(div(orders,visits)):"-"];
+function renderDaily(){
+  const md=monthData(state.month), C=cur();
+  const mt=$("monthTbl"); mt.innerHTML="";
+  mt.append(el("thead",{},el("tr",{},el("th",{},"Platform"),...COLS.map(([c,k])=>el("th",{class:k},c)))));
+  const mtb=el("tbody");
+  const plats=Object.keys(md.byPlat).sort((a,b)=>md.byPlat[b].spend-md.byPlat[a].spend);
+  for(const k of plats){ const v=md.byPlat[k]; mtb.append(el("tr",{},el("td",{},platChip(k)),...metricCells(v.spend,v.sales,v.orders,v.visits).map(x=>el("td",{class:"n"},x)))); }
+  if(plats.length){
+    mtb.append(el("tr",{class:"total"},el("td",{},"Total platform"),...metricCells(md.tot.spend,md.tot.sales,md.tot.orders,md.tot.visits).map(x=>el("td",{class:"n"},x))));
+    if(md.storeTot.days) mtb.append(el("tr",{class:"store"},el("td",{},`Total Store (${md.storeTot.days} يوم)`),...metricCells(md.spendOnStoreDays,md.storeTot.sales,md.storeTot.orders,0,false).map(x=>el("td",{class:"n"},x))));
+  } else mtb.append(el("tr",{},el("td",{colspan:9,class:"muted"},`مفيش أرقام لشهر ${monthLabel(state.month)} لسه.`)));
+  mt.append(mtb);
+  $("monthTotal").innerHTML="";
+  if(plats.length) $("monthTotal").append(el("div",{class:"total-line"},el("span",{},"الإجمالي"),el("span",{},"صرف ",el("span",{class:"num"},fmt0(md.tot.spend))," · مبيعات منصات ",el("span",{class:"num"},fmt0(md.tot.sales)),md.storeTot.days?el("span",{}," · مبيعات متجر ",el("span",{class:"num"},fmt0(md.storeTot.sales))):null," "+C)));
+  const dt=$("dailyTbl"); dt.innerHTML="";
+  dt.append(el("thead",{},el("tr",{},el("th",{},"Date"),el("th",{},"Platform"),...COLS.map(([c,k])=>el("th",{class:k},c)))));
+  const tb=el("tbody"), order=PLATFORMS.map(p=>p.key);
+  for(const d of [...md.dates].reverse()){
+    const rows=md.rows.filter(r=>r.date===d).sort((a,b)=>order.indexOf(a.platform)-order.indexOf(b.platform));
+    const s=md.store.find(x=>x.date===d);
+    const span=rows.length+(rows.length?1:0)+(s?1:0);
+    let first=true; const dateCell=()=>{ if(!first) return null; first=false; return el("td",{class:"date",rowspan:span},dayLabel(d)); };
+    let sp=0,sa=0,or=0,vi=0;
+    for(const r of rows){
+      sp+=+r.spend||0; sa+=+r.sales||0; or+=+r.orders||0; vi+=+r.visits||0;
+      const tr=el("tr",{class:"click",tabindex:"0",title:r.source==="api"?"مسحوب من المنصة":"اضغط للتعديل"},dateCell(),el("td",{},platChip(r.platform), r.source==="api"?el("span",{class:"muted small"}," · API"):null),...metricCells(+r.spend,+r.sales,+r.orders,+r.visits).map(x=>el("td",{class:"n"},x)));
+      const load=()=>loadDaily(r); tr.addEventListener("click",load); tr.addEventListener("keydown",e=>{if(e.key==="Enter")load();});
+      tb.append(tr);
+    }
+    if(rows.length) tb.append(el("tr",{class:"total"},dateCell(),el("td",{},"Total platform"),...metricCells(sp,sa,or,vi).map(x=>el("td",{class:"n"},x))));
+    if(s){ const tr=el("tr",{class:"store click",tabindex:"0"},dateCell(),el("td",{},"Total Store"),...metricCells(sp,+s.sales,+s.orders,0,false).map(x=>el("td",{class:"n"},x)));
+      const load=()=>loadStore(s); tr.addEventListener("click",load); tr.addEventListener("keydown",e=>{if(e.key==="Enter")load();}); tb.append(tr); }
+  }
+  if(!md.dates.length) tb.append(el("tr",{},el("td",{colspan:10,class:"muted"},"مفيش أيام مسجلة في الشهر ده.")));
+  dt.append(tb);
+}
+function loadDaily(r){ $("entryCard").classList.remove("hidden"); $("pasteCard").classList.add("hidden"); $("dDate").value=r.date; $("dPlat").value=r.platform; $("dSpend").value=r.spend??""; $("dSales").value=r.sales??""; $("dOrders").value=r.orders??""; $("dVisits").value=r.visits??""; $("dSpend").focus(); }
+function loadStore(s){ $("entryCard").classList.remove("hidden"); $("pasteCard").classList.add("hidden"); $("sDate").value=s.date; $("sSales").value=s.sales??""; $("sOrders").value=s.orders??""; $("sSales").focus(); }
+
+// ---------- dashboard: edits ----------
+function renderEditAccSelect(){
+  const sel=$("eAcc"), p=$("ePlat").value, c=client(); const keep=sel.value;
+  sel.innerHTML=""; sel.append(el("option",{value:""},"—"));
+  for(const a of (c?.accounts||[]).filter(a=>a.platform===p)) sel.append(el("option",{value:a.accountId},a.name||a.accountId));
+  sel.value=[...sel.options].some(o=>o.value===keep)?keep:"";
+}
+$("ePlat").addEventListener("change",renderEditAccSelect);
+function renderEdits(){
+  const log=$("log"); log.innerHTML="";
+  const fp=$("fPlat").value, fw=$("fWho").value, ft=$("fType").value, q=$("fQ").value.trim().toLowerCase();
+  const who=[...new Set(state.edits.map(e=>e.authorId).filter(Boolean))];
+  const curW=$("fWho").value; $("fWho").innerHTML=""; $("fWho").append(el("option",{value:""},"كل الميديا بايرز"));
+  for(const w of who) $("fWho").append(el("option",{value:w},nameOf(w))); $("fWho").value=who.includes(curW)?curW:"";
+  const isNew = e => e.authorId!==state.uid && state.lastSeen && (e.createdAt||e.at) > state.lastSeen;
+  const newOnes=state.edits.filter(isNew);
+  $("newCount").innerHTML="";
+  if(newOnes.length){ $("newCount").append(el("span",{class:"pill new"},`${newOnes.length} تعديل جديد من زميلك`)); $("markSeen").classList.remove("hidden"); } else $("markSeen").classList.add("hidden");
+  const list=state.edits.filter(e=>(!fp||e.platform===fp)&&(!fw||e.authorId===fw)&&(!ft||e.type===ft)&&(!q||(e.entity||"").toLowerCase().includes(q)||(e.note||"").toLowerCase().includes(q)));
+  if(!list.length){ log.append(el("div",{class:"empty"}, state.edits.length?"مفيش تعديلات بالفلتر ده.":"لسه مفيش تعديلات متسجلة للعميل ده. أول ما أي حد يعدل حاجة يسجلها هنا، والتاني هيشوفها فورًا.")); return; }
+  const accName = (p,id) => (client()?.accounts||[]).find(a=>a.platform===p&&a.accountId===id)?.name || id;
+  const groups={}; for(const e of list){ const d=(e.at||"").slice(0,10); (groups[d]=groups[d]||[]).push(e); }
+  for(const d of Object.keys(groups).sort().reverse()){
+    const g=el("div",{class:"log-day"}, el("h3",{},d?dayLabel(d):"بدون تاريخ"));
+    for(const e of groups[d]){
+      const card=el("article",{class:"edit"+(isNew(e)?" is-new":"")});
+      const who=el("span",{class:"who"}, el("span",{},nameOf(e.authorId)), el("span",{class:"num"},(e.at||"").slice(11,16)));
+      if(e.authorId===state.uid && state.canWrite){ const del=el("button",{class:"ghost small",type:"button","aria-label":"حذف التعديل"},"حذف"); del.addEventListener("click",()=>deleteEdit(e)); who.append(del); }
+      card.append(el("div",{class:"row1"}, platChip(e.platform), e.accountId?el("span",{class:"muted small"},accName(e.platform,e.accountId)):null, el("span",{class:"pill neutral"},e.type||"Other"), el("span",{class:"muted small"},e.level||""), isNew(e)?el("span",{class:"pill new"},"جديد"):null, who));
+      card.append(el("div",{class:"entity"},e.entity||""));
+      card.append(el("div",{class:"change"}, el("span",{class:"muted small"},"قبل:"), el("span",{class:"before"},e.before||"-"), el("span",{class:"arrow"},"←"), el("span",{class:"muted small"},"بعد:"), el("span",{class:"after"},e.after||"-")));
+      if(e.note) card.append(el("div",{class:"why"},"السبب: "+e.note));
+      g.append(card);
+    }
+    log.append(g);
+  }
+}
+["fPlat","fWho","fType"].forEach(id=>$(id).addEventListener("change",renderEdits));
+$("fQ").addEventListener("input",renderEdits);
+async function resolveNames(){
+  if(!state.user) return;
+  const ids=[...new Set(state.edits.map(e=>e.authorId).filter(Boolean))].filter(i=>i!==state.uid);
+  if(!ids.length) return;
+  try{ const ps=await state.user.profiles(ids); let ch=false; for(const id of ids){ const n=ps?.[id]?.name||""; if(n&&state.names[id]!==n){state.names[id]=n;ch=true;} } if(ch) renderEdits(); }catch(_){}
+}
+
+// ---------- accounts page ----------
+function renderAccountsPage(){
+  const c=client();
+  $("clientEdit").classList.toggle("hidden", !c);
+  if(c && document.activeElement!==$("cName")){ $("cName").value=c.name||""; $("cCur").value=c.currency||"SAR"; }
+  $("linkedTitle").textContent = c ? `حسابات ${c.name}` : "حسابات العميل";
+  const t=$("linkedTbl"); t.innerHTML="";
+  t.append(el("thead",{},el("tr",{},el("th",{},"المنصة"),el("th",{},"الحساب"),el("th",{},"رقم الحساب"),el("th",{},"عملة الحساب"),el("th",{class:"n"},`سعر التحويل لـ ${cur()}`),el("th",{},"المصدر"),el("th",{},""))));
+  const tb=el("tbody");
+  const accs=c?.accounts||[];
+  if(!c) tb.append(el("tr",{},el("td",{colspan:7,class:"muted"},"اختار عميل أو أضف عميل جديد الأول.")));
+  else if(!accs.length) tb.append(el("tr",{},el("td",{colspan:7,class:"muted"},"مفيش حسابات مربوطة بالعميل ده. اختار حساباته من تحت.")));
+  accs.forEach((a,i)=>{
+    const fx=el("input",{type:"number",step:"any",min:"0",value:a.fx??1,"aria-label":"سعر التحويل",id:"fx_"+i});
+    fx.addEventListener("change",()=>updateAccount(i,{fx:+fx.value||1}));
+    const rm=el("button",{class:"ghost",type:"button"},"إزالة"); rm.addEventListener("click",()=>removeAccount(i));
+    tb.append(el("tr",{},el("td",{},platChip(a.platform)),el("td",{},a.name||"-"),el("td",{class:"num"},a.accountId),el("td",{},a.currency||"-"),el("td",{class:"n"},fx),el("td",{},a.via==="api"?el("span",{class:"pill good"},"مربوط بالمنصة"):el("span",{class:"pill neutral"},"يدوي")),el("td",{},rm)));
+  });
+  t.append(tb);
+  renderConnectors();
+}
+function renderConnectors(){
+  for(const box of document.querySelectorAll(".conn")){
+    const key=box.dataset.plat, p=PMAP[key], found=state.found[key];
+    box.innerHTML="";
+    const btn=el("button",{type:"button"}, found?.loading?"جاري التحميل…":(found?"تحديث القائمة":`اعرض حساباتي على ${p.label}`));
+    btn.disabled=!state.mcp||found?.loading||!client();
+    btn.addEventListener("click",()=>loadAccounts(key));
+    box.append(el("div",{class:"conn-head"},el("h3",{},platChip(key)),btn));
+    if(!found){ box.append(el("p",{class:"muted small",style:"margin:0"}, state.mcp?"اعرض حساباتك واختار اللي تبع العميل المختار.":"الربط المباشر مش مفعل على الصفحة دي لسه.")); continue; }
+    if(found.error){ box.append(el("div",{class:"notice bad small"},found.error)); continue; }
+    if(found.list){
+      const c=client(); const mine=new Set((c?.accounts||[]).filter(a=>a.platform===key).map(a=>a.accountId));
+      const others={}; for(const oc of state.clients) if(oc.id!==state.cid) for(const a of oc.accounts||[]) if(a.platform===key) others[a.accountId]=oc.name;
+      const list=el("div",{class:"acc-list"});
+      if(!found.list.length) list.append(el("p",{class:"muted small"},"مفيش حسابات ظاهرة على الكونيكتور ده."));
+      for(const a of found.list){
+        const id=`chk_${key}_${slug(a.accountId)}`;
+        const cb=el("input",{type:"checkbox",id}); cb.checked=mine.has(a.accountId); cb.disabled=!state.canWrite;
+        cb.addEventListener("change",()=>toggleAccount(key,a,cb.checked));
+        const meta=el("label",{class:"meta",for:id},el("b",{},a.name||a.accountId),el("span",{},`${a.accountId}${a.currency?" · "+a.currency:""}`));
+        const tags=el("div",{style:"display:grid;gap:4px;justify-items:end"});
+        if(a.bad) tags.append(el("span",{class:"pill bad"},a.bad));
+        if(others[a.accountId]) tags.append(el("span",{class:"pill warn"},"مع "+others[a.accountId]));
+        list.append(el("div",{class:"acc"},cb,meta,tags));
+      }
+      box.append(list);
+    }
+  }
+}
+function mcpErrorText(e, server){
+  const code=e?.code||"";
+  if(code==="server_not_connected") return `${server} مش متوصل. ضيفه من claude.ai ← Settings ← Connectors.`;
+  if(code==="needs_reauth") return `محتاج تعيد ربط ${server} من claude.ai ← Settings ← Connectors.`;
+  if(code==="not_in_manifest") return `الصفحة مش مسموح لها تستخدم ${server}. اسمح لها من إعدادات الصفحة.`;
+  if(code==="approval_required") return "محتاج موافقتك. افتح الصفحة على claude.ai واضغط تاني.";
+  if(code==="selection_required") return `عندك أكتر من ${server} متوصل. اختار واحد من claude.ai.`;
+  if(code==="blocked_by_policy") return "سياسة المؤسسة مانعة الأداة دي.";
+  if(code==="tool_error") return "المنصة رجعت خطأ: "+(e.message||"").slice(0,200);
+  if(code==="server_unavailable") return `سيرفر ${server} مش بيرد دلوقتي. جرّب تاني بعد دقيقة.`;
+  if(code==="upstream_error") return e?.retryable ? `لسه موافقتك على ${server} موصلتش. وافق في النافذة اللي ظهرت واضغط تاني.` : `${server} مش بيرد أو محتاج إعادة ربط. جرّب تاني بعد دقيقة، ولو فضل كده اعمل Reconnect لـ ${server} من claude.ai ← Settings ← Connectors.`;
+  return `حصل خطأ (${code||"unknown"}).`;
+}
+async function loadAccounts(key){
+  const p=PMAP[key]; state.found[key]={loading:true}; renderConnectors();
+  try{
+    let list=[];
+    if(key==="meta"){
+      let cursor=null, guard=0;
+      do{ const input={limit:50,client_conversation_id:CONV_ID,advertiser_job:"set_up_and_fix_ad_account"}; if(cursor) input.cursor=cursor;
+        const r=await callMcp(p.server,"ads_get_ad_accounts",input); const pl=r.payload||{};
+        for(const a of pl.ad_accounts||[]) list.push({accountId:String(a.ad_account_id),name:a.ad_account_name,currency:a.currency,bad: (a.is_queryable===false||a.is_ads_mcp_enabled===false)?(a.account_status&&a.account_status!=="ACTIVE"?a.account_status:"مش متاح للتقارير"):null});
+        cursor=pl.next_cursor; guard++; } while(cursor && guard<10);
+    } else if(key==="tiktok"){
+      const r=await callMcp(p.server,"auth_advertiser_get",{}); const pl=r.payload||{};
+      for(const a of pl?.data?.list||[]) list.push({accountId:String(a.advertiser_id),name:a.advertiser_name,currency:null});
+    } else if(key==="snapchat"){
+      for(const rel of ["owned","shared"]){
+        let cursor=null, guard=0;
+        do{ const input={return_fields:["id","name","currency","timezone","status"]}; if(rel==="shared") input.account_relationship="shared"; else input.limit=100; if(cursor) input.cursor=cursor;
+          let pl; try{ pl=(await callMcp(p.server,"snap_ads_get_my_ad_accounts",input)).payload||{}; }catch(e){ if(rel==="shared") break; throw e; }
+          for(const w of pl.adaccounts||[]){ const a=w.adaccount||w; const v=x=>x&&typeof x==="object"?x.value:x; if(!a?.id) continue; if(!list.some(z=>z.accountId===a.id)) list.push({accountId:a.id,name:v(a.name),currency:v(a.currency),timezone:v(a.timezone),bad:a.status&&a.status!=="ACTIVE"?a.status:null}); }
+          const nl=pl.paging?.next_link; cursor = pl.paging?.next_cursor || (nl ? new URL(nl).searchParams.get("cursor") : null); guard++;
+        } while(cursor && guard<10);
+      }
+    }
+    list.sort((a,b)=>(a.bad?1:0)-(b.bad?1:0) || (a.name||"").localeCompare(b.name||""));
+    state.found[key]={list};
+  }catch(e){ state.found[key]={error:mcpErrorText(e,p.label)}; }
+  renderConnectors();
+}
+function suggestFx(accCur){ const c=cur(); if(!accCur||accCur===c) return 1; return FX_DEFAULT[c]?.[accCur] ?? 1; }
+async function saveAccounts(accounts){
+  const c=client(); if(!c||!guard()) return false;
+  return await safe(state.db.doc("clients/"+c.id).update({accounts}), null);
+}
+async function toggleAccount(key,a,on){
+  const c=client(); if(!c) return;
+  let accounts=[...(c.accounts||[])];
+  if(on && !accounts.some(x=>x.platform===key&&x.accountId===a.accountId)) accounts.push({platform:key,accountId:a.accountId,name:a.name||"",currency:a.currency||null,timezone:a.timezone||null,fx:suggestFx(a.currency),via:"api"});
+  if(!on) accounts=accounts.filter(x=>!(x.platform===key&&x.accountId===a.accountId));
+  if(await saveAccounts(accounts)) toast(on?"اتربط الحساب بالعميل":"اتشال الحساب");
+}
+async function updateAccount(i,patch){ const c=client(); const accounts=(c.accounts||[]).map((a,j)=>j===i?{...a,...patch}:a); if(await saveAccounts(accounts)) toast("اتحفظ"); }
+async function removeAccount(i){ const c=client(); const accounts=(c.accounts||[]).filter((_,j)=>j!==i); if(await saveAccounts(accounts)) toast("اتشال الحساب"); }
+$("addManualAcc").addEventListener("click", async ()=>{
+  const c=client(); if(!c){ toast("اختار عميل الأول"); return; }
+  const id=$("mId").value.trim(); if(!id){ toast("اكتب رقم الحساب"); return; }
+  const platform=$("mPlat").value, currency=$("mCur").value;
+  if((c.accounts||[]).some(a=>a.platform===platform&&a.accountId===id)){ toast("الحساب ده مضاف بالفعل"); return; }
+  const accounts=[...(c.accounts||[]),{platform,accountId:id,name:$("mName").value.trim(),currency,fx:suggestFx(currency),via:"manual"}];
+  if(await saveAccounts(accounts)){ $("mId").value=""; $("mName").value=""; toast("اتضاف الحساب"); }
+});
+$("addClient").addEventListener("click", async ()=>{
+  if(!guard()) return;
+  const name=$("newClientName").value.trim(); if(!name){ toast("اكتب اسم العميل"); return; }
+  const id=(slug(name).replace(/^-+|-+$/g,"").toLowerCase()||"client")+"-"+Math.random().toString(36).slice(2,6);
+  if(await safe(state.db.doc("clients/"+id).set({name,currency:$("newClientCur").value,accounts:[],createdBy:state.uid,createdAt:new Date().toISOString()}),"اتضاف العميل")){ $("newClientName").value=""; selectClient(id); }
+});
+$("saveClient").addEventListener("click", async ()=>{ const c=client(); if(!c||!guard()) return; const name=$("cName").value.trim(); if(!name) return; await safe(state.db.doc("clients/"+c.id).update({name,currency:$("cCur").value}),"اتحفظ"); });
+$("delClient").addEventListener("click", async ()=>{
+  const c=client(); if(!c||!guard()) return;
+  const b=$("delClient"); if(!b.dataset.confirm){ b.dataset.confirm="1"; b.textContent="اضغط تاني لتأكيد الحذف"; setTimeout(()=>{b.dataset.confirm="";b.textContent="حذف العميل";},4000); return; }
+  b.dataset.confirm=""; b.textContent="حذف العميل";
+  if(await safe(state.db.doc("clients/"+c.id).delete(),"اتحذف العميل")){ const next=state.clients.find(x=>x.id!==c.id); selectClient(next?.id||null); }
+});
+
+// ---------- targets page ----------
+function renderTargetsPage(){
+  const c=client();
+  $("tTitle").textContent = c ? `تارجت ${c.name}` : "تارجت الشهر";
+  const ym=state.month||todayISO().slice(0,7);
+  if(document.activeElement!==$("tMonth") && $("tMonth").value!==ym){ $("tMonth").value=ym; }
+  fillTargetForm();
+  const tbl=$("targetsTbl"); tbl.innerHTML="";
+  tbl.append(el("thead",{},el("tr",{},el("th",{},"الشهر"),el("th",{class:"n"},"التارجت"),el("th",{class:"n"},"المحقق"),el("th",{},"التقدم"),el("th",{class:"n"},"الميزانية"),el("th",{class:"n"},"الصرف"),el("th",{class:"n"},"ROAS مستهدف"),el("th",{},"الأساس"))));
+  const tb=el("tbody"); const months=Object.keys(state.targets).sort().reverse();
+  let sumT=0,sumA=0;
+  for(const m of months){
+    const t=state.targets[m], md=monthData(m), b=basisNumbers(md,t), p=div(b.sales,t.sales)||0; sumT+=+t.sales||0; sumA+=b.sales||0;
+    const bar=el("div",{class:"mini-bar"}); const f=el("i"); f.style.width=Math.min(p*100,100)+"%"; bar.append(f);
+    const tr=el("tr",{class:"click"+(m===state.month?" sel":""),tabindex:"0"},el("td",{},monthLabel(m)),el("td",{class:"n"},fmt0(t.sales)),el("td",{class:"n"},fmt0(b.sales)),el("td",{},el("div",{style:"display:flex;gap:8px;align-items:center"},bar,el("span",{class:"num small"},pct(p,1)))),el("td",{class:"n"},fmt0(t.budget)),el("td",{class:"n"},fmt0(md.tot.spend)),el("td",{class:"n"},t.roas?fmt2(t.roas):"-"),el("td",{},t.basis==="platform"?"المنصات":"المتجر"));
+    const pick=()=>{ state.month=m; renderAll(); }; tr.addEventListener("click",pick); tr.addEventListener("keydown",e=>{if(e.key==="Enter")pick();});
+    tb.append(tr);
+  }
+  if(!months.length) tb.append(el("tr",{},el("td",{colspan:8,class:"muted"},c?"مفيش تارجتس متسجلة للعميل ده.":"اختار عميل الأول.")));
+  tbl.append(tb);
+}
+function fillTargetForm(){
+  const ym=$("tMonth").value||state.month; const t=state.targets[ym]||{};
+  if([ "tSales","tBudget","tRoas","tOrders","tBasis"].includes(document.activeElement?.id)) return;
+  $("tSales").value=t.sales||""; $("tBudget").value=t.budget||""; $("tRoas").value=t.roas||""; $("tOrders").value=t.orders||""; $("tBasis").value=t.basis||"store";
+  $("tMsg").textContent = t.updatedAt ? `آخر تعديل ${t.updatedAt.slice(0,10)} بواسطة ${nameOf(t.updatedBy)}` : "";
+  $("delTarget").disabled = !t.sales || !state.canWrite;
+}
+$("tMonth").addEventListener("change",()=>{ if($("tMonth").value){ state.month=$("tMonth").value; renderAll(); } });
+$("saveTarget").addEventListener("click", async ()=>{
+  const c=client(); if(!c){ toast("اختار عميل الأول"); return; } if(!guard()) return;
+  const ym=$("tMonth").value; if(!ym){ toast("اختار الشهر"); return; }
+  const sales=+$("tSales").value; if(!sales){ toast("اكتب رقم تارجت المبيعات"); return; }
+  const data={clientId:c.id, month:ym, sales, budget:+$("tBudget").value||null, roas:+$("tRoas").value||null, orders:+$("tOrders").value||null, basis:$("tBasis").value, updatedBy:state.uid, updatedAt:new Date().toISOString()};
+  if(await safe(state.db.doc(`targets/${c.id}_${ym}`).set(data),"اتحفظ التارجت")){ state.month=ym; }
+});
+$("delTarget").addEventListener("click", async ()=>{ const c=client(); const ym=$("tMonth").value; if(!c||!ym||!guard()) return; await safe(state.db.doc(`targets/${c.id}_${ym}`).delete(),"اتحذف التارجت"); });
+
+// ---------- render all ----------
+function renderAll(){
+  renderClientSelect();
+  const hasClient=!!client();
+  $("noClient").classList.toggle("hidden", hasClient || !state.loadedClients);
+  for(const id of ["target","required","edits","daily"]) $(id).classList.toggle("hidden", !hasClient);
+  renderMonthSelect();
+  if(state.view==="dashboard" && hasClient){ renderTarget(); renderRequired(); renderEdits(); renderDaily(); renderEditAccSelect(); }
+  if(state.view==="accounts") renderAccountsPage();
+  if(state.view==="targets") renderTargetsPage();
+  $("syncBtn").disabled = !state.mcp || !state.canWrite || !(client()?.accounts||[]).some(a=>a.via==="api");
+  $("syncBtn").title = !state.mcp ? "الربط المباشر مش مفعل على الصفحة دي" : "";
+}
+
+// ---------- writes ----------
+function guard(){ if(!state.db||!state.canWrite){ toast("مش متاح الحفظ: محتاج صلاحية Contributor أو أعلى على الصفحة."); return false;} return true; }
+async function safe(p, ok){ try{ await p; if(ok) toast(ok); return true; }catch(e){ if(e&&e.code==="invalid_argument"&&state.canWrite===true&&!state._probed){ state._probed=true; } toast(e&&e.code==="quota_exceeded"?"المساحة امتلأت: احذف بيانات قديمة.":"الحفظ فشل، حاول تاني."); return false; } }
+
+$("editForm").addEventListener("submit", async ev=>{
+  ev.preventDefault(); const c=client(); if(!c||!guard()) return;
+  const atLocal=$("eAt").value; if(!atLocal) return;
+  const data={clientId:c.id, at:atLocal+":00", platform:$("ePlat").value, accountId:$("eAcc").value||null, level:$("eLevel").value, type:$("eType").value, entity:$("eEntity").value.trim(), before:$("eBefore").value.trim(), after:$("eAfter").value.trim(), note:$("eWhy").value.trim(), authorId:state.uid, createdAt:new Date().toISOString()};
+  $("eSubmit").disabled=true;
+  const ok=await safe(state.db.collection("edits").add(data),"اتسجل التعديل");
+  $("eSubmit").disabled=false;
+  if(ok){ ["eEntity","eBefore","eAfter","eWhy"].forEach(id=>$(id).value=""); $("eAt").value=nowLocalInput(); }
+});
+async function deleteEdit(e){ if(!guard()) return; await safe(state.db.doc("edits/"+e.id).delete(),"اتحذف"); }
+$("markSeen").addEventListener("click", async ()=>{
+  if(!state.db||!state.uid) return;
+  const ts=new Date().toISOString(); state.lastSeen=ts; renderEdits();
+  try{ await state.db.doc(`data/users/${state.uid}/state`).set({lastSeen:ts}); }catch(_){}
+});
+$("toggleEntry").addEventListener("click",()=>{$("entryCard").classList.toggle("hidden");$("pasteCard").classList.add("hidden");});
+$("togglePaste").addEventListener("click",()=>{$("pasteCard").classList.toggle("hidden");$("entryCard").classList.add("hidden");});
+const dailyPath=(cid,date,platform)=>`daily/${cid}_${date}_${platform}`;
+$("saveDaily").addEventListener("click", async ()=>{
+  const c=client(); if(!c||!guard()) return;
+  const date=$("dDate").value, platform=$("dPlat").value; if(!date){toast("اختار التاريخ");return;}
+  const data={clientId:c.id,date,platform,spend:+$("dSpend").value||0,sales:+$("dSales").value||0,orders:+$("dOrders").value||0,visits:$("dVisits").value===""?null:+$("dVisits").value,source:"manual",updatedBy:state.uid,updatedAt:new Date().toISOString()};
+  if(await safe(state.db.doc(dailyPath(c.id,date,platform)).set(data),"اتحفظ")) state.month=date.slice(0,7);
+});
+$("delDaily").addEventListener("click", async ()=>{ const c=client(); if(!c||!guard()) return; const date=$("dDate").value; if(!date) return; await safe(state.db.doc(dailyPath(c.id,date,$("dPlat").value)).delete(),"اتحذف السطر"); });
+$("saveStore").addEventListener("click", async ()=>{
+  const c=client(); if(!c||!guard()) return; const date=$("sDate").value; if(!date){toast("اختار التاريخ");return;}
+  if(await safe(state.db.doc(`store/${c.id}_${date}`).set({clientId:c.id,date,sales:+$("sSales").value||0,orders:+$("sOrders").value||0,updatedBy:state.uid,updatedAt:new Date().toISOString()}),"اتحفظ")) state.month=date.slice(0,7);
+});
+function parseDate(s){
+  s=s.trim(); if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  let m=s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/); if(m) return `${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;
+  m=s.match(/^(\d{1,2})\s+([A-Za-z]{3})[A-Za-z]*\s+(\d{4})$/); if(m){ const i=MONTHS_EN.findIndex(x=>x.toLowerCase()===m[2].toLowerCase()); if(i>=0) return `${m[3]}-${pad(i+1)}-${m[1].padStart(2,"0")}`; }
+  return null;
+}
+const numv = s => { if(s==null) return 0; const v=String(s).replace(/[,%\s]/g,""); return v===""||v==="-"?0:+v||0; };
+$("doPaste").addEventListener("click", async ()=>{
+  const c=client(); if(!c||!guard()) return;
+  const lines=$("pasteBox").value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  let ok=0,bad=0,lastDate=null; $("doPaste").disabled=true;
+  for(const line of lines){
+    const col=line.split(/\t|,(?=\S)|;/).map(x=>x.trim());
+    const date=parseDate(col[0]||""); const pk=(col[1]||"").toLowerCase(); if(!date){bad++;continue;}
+    try{
+      if(pk==="store"||pk==="total store"){ await state.db.doc(`store/${c.id}_${date}`).set({clientId:c.id,date,sales:numv(col[3]),orders:numv(col[4]),updatedBy:state.uid,updatedAt:new Date().toISOString()}); ok++; lastDate=date; continue; }
+      const platform=ALIASES[pk]; if(!platform){bad++;continue;}
+      await state.db.doc(dailyPath(c.id,date,platform)).set({clientId:c.id,date,platform,spend:numv(col[2]),sales:numv(col[3]),orders:numv(col[4]),visits:col[5]?numv(col[5]):null,source:"manual",updatedBy:state.uid,updatedAt:new Date().toISOString()}); ok++; lastDate=date;
+    }catch(_){bad++;}
+  }
+  $("doPaste").disabled=false;
+  $("pasteMsg").textContent=`اتسجل ${ok} سطر`+(bad?` · ${bad} سطر متقريش`:"");
+  if(ok){ $("pasteBox").value=""; if(lastDate){ state.month=lastDate.slice(0,7); renderAll(); } }
+});
+
+// ---------- sync from platforms ----------
+function tzOffset(tz, iso){
+  try{ const parts=new Intl.DateTimeFormat("en-US",{timeZone:tz,timeZoneName:"longOffset"}).formatToParts(new Date(iso+"T12:00:00Z")); const v=parts.find(p=>p.type==="timeZoneName")?.value||"GMT"; return v==="GMT"?"+00:00":v.replace("GMT",""); }catch(_){ return "+03:00"; }
+}
+async function callMcp(server, tool, input, opts){
+  try{ return await state.mcp.callTool(server, tool, input, opts); }
+  catch(e){
+    if(e && e.retryable){ await new Promise(r=>setTimeout(r, Math.min(e.retryAfterMs||1500+Math.random()*1500, 8000))); return await state.mcp.callTool(server, tool, input, opts); }
+    throw e;
+  }
+}
+const val = x => x==null?0:(typeof x==="object"?(+(x.value??0)||0):(+x||0));
+async function fetchMeta(acc, since, until){
+  const out=[]; let cursor=null, g=0;
+  do{
+    const input={ad_account_id:acc.accountId,level:"ad_account",fields:["amount_spent","omni_purchase","omni_purchase_values","landing_page_view"],time_range:JSON.stringify({since,until}),time_increment:"1",include_additional_context:false,reporting_purpose:["metric_lookup"],advertiser_job:"report_measure_or_look_up",client_conversation_id:CONV_ID};
+    if(cursor) input.cursor=cursor;
+    const pl=(await callMcp("Meta Ads","ads_get_ad_entities",input,{cache:false})).payload||{};
+    let ents=pl.ad_entities; if(typeof ents==="string"){ try{ ents=JSON.parse(ents); }catch(_){ ents=[]; } }
+    for(const e of ents||[]) if(e.date_start) out.push({date:e.date_start,spend:val(e.amount_spent),sales:val(e.omni_purchase_values),orders:val(e.omni_purchase),visits:val(e.landing_page_view)});
+    cursor=pl.pagination?.next_cursor||null; g++;
+  } while(cursor && g<10);
+  return out;
+}
+async function fetchTikTok(acc, since, until){
+  const out=[]; let s=since;
+  while(s<=until){
+    let e=addDays(s,29); if(e>until) e=until;
+    const pl=(await callMcp("TikTok","report_integrated_get",{advertiser_id:acc.accountId,report_type:"BASIC",data_level:"AUCTION_ADVERTISER",dimensions:["advertiser_id","stat_time_day"],metrics:["spend","complete_payment","complete_payment_roas","total_landing_page_view"],start_date:s,end_date:e,page_size:100},{cache:false})).payload||{};
+    if(pl.code && pl.code!==0) throw {code:"tool_error",message:pl.message||"TikTok error"};
+    for(const r of pl?.data?.list||[]){ const m=r.metrics||{}, sp=+m.spend||0; out.push({date:(r.dimensions?.stat_time_day||"").slice(0,10),spend:sp,sales:sp*(+m.complete_payment_roas||0),orders:+m.complete_payment||0,visits:+m.total_landing_page_view||0}); }
+    s=addDays(e,1);
+  }
+  return out;
+}
+async function fetchSnap(acc, since, until){
+  const tz=acc.timezone||"Asia/Riyadh", endDay=addDays(until,1);
+  const base={ad_account_id:acc.accountId,granularity:"DAY",breakdown:"campaign",fields:["spend","conversion_purchases","conversion_purchases_value","swipes"],start_time:`${since}T00:00:00${tzOffset(tz,since)}`,end_time:`${endDay}T00:00:00${tzOffset(tz,endDay)}`,swipe_up_attribution_window:"28_DAY",view_attribution_window:"1_DAY",limit:50,omit_empty:true};
+  const byDate={}; let cursor=null, g=0;
+  do{
+    const input={...base}; if(cursor) input.cursor=cursor;
+    const pl=(await callMcp("snap","snap_ads_get_ad_account_stats",input,{cache:false})).payload||{};
+    const ts=pl.timeseries_stats?.[0]?.timeseries_stat||{};
+    for(const camp of ts.breakdown_stats?.campaign||[]) for(const row of camp.timeseries||[]){
+      const st=row.stats||{};
+      const date=String(row.start_time?.value||row.start_time||"").slice(0,10); if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      const b=byDate[date]||(byDate[date]={date,spend:0,sales:0,orders:0,visits:0});
+      b.spend+=(+st.spend||0)/1e6; b.sales+=(+st.conversion_purchases_value||0)/1e6; b.orders+=+st.conversion_purchases||0; b.visits+=+st.swipes||0;
+    }
+    const nl=ts.paging?.next_link; cursor = nl ? (()=>{ try{ return new URL(nl).searchParams.get("cursor"); }catch(_){ return null; } })() : null; g++;
+  } while(cursor && g<20);
+  return Object.values(byDate);
+}
+$("syncBtn").addEventListener("click", async ()=>{
+  const c=client(); if(!c||!state.mcp||!guard()) return;
+  const ym=state.month, today=todayISO();
+  const since=`${ym}-01`; let until=`${ym}-${pad(daysIn(ym))}`; if(until>today) until=today;
+  if(since>today){ toast("الشهر ده لسه مبدأش"); return; }
+  const accs=(c.accounts||[]).filter(a=>a.via==="api" && ["meta","tiktok","snapchat"].includes(a.platform));
+
+  const logBox=$("syncLog"); logBox.innerHTML=""; $("syncBox").classList.remove("hidden");
+  $("syncBtn").disabled=true; $("syncBtn").textContent="جاري السحب…";
+  const agg={}; const touched=new Set();
+  for(const a of accs){
+    const line=el("div",{},platChip(a.platform)," ",a.name||a.accountId,": ",el("span",{class:"muted"},"جاري…")); logBox.append(line);
+    try{
+      const rows = a.platform==="meta" ? await fetchMeta(a,since,until) : a.platform==="tiktok" ? await fetchTikTok(a,since,until) : await fetchSnap(a,since,until);
+      const fx=+a.fx||1; let sp=0;
+      for(const r of rows){ if(!r.date||!r.date.startsWith(ym)) continue; const k=r.date+"|"+a.platform; const b=agg[k]||(agg[k]={date:r.date,platform:a.platform,spend:0,sales:0,orders:0,visits:0}); b.spend+=r.spend*fx; b.sales+=r.sales*fx; b.orders+=r.orders; b.visits+=r.visits; sp+=r.spend*fx; }
+      touched.add(a.platform);
+      line.lastChild.replaceWith(el("span",{class:"pill good"},`تمام · صرف ${fmt0(sp)} ${cur()}`));
+    }catch(e){ line.lastChild.replaceWith(el("span",{class:"pill bad"},mcpErrorText(e,PMAP[a.platform].label))); }
+  }
+  let writes=0;
+  for(const b of Object.values(agg)){
+    const id=`${c.id}_${b.date}_${b.platform}`, ex=state.daily.find(r=>r.id===id);
+    const r2=x=>Math.round(x*100)/100;
+    const data={clientId:c.id,date:b.date,platform:b.platform,spend:r2(b.spend),sales:r2(b.sales),orders:Math.round(b.orders),visits:Math.round(b.visits)||null,source:"api",syncedAt:new Date().toISOString(),updatedBy:state.uid};
+    if(ex && ex.source==="api" && r2(+ex.spend)===data.spend && r2(+ex.sales)===data.sales && +ex.orders===data.orders && (ex.visits||null)===data.visits) continue;
+    if(!ex && !data.spend && !data.sales && !data.orders) continue;
+    try{ await state.db.doc("daily/"+id).set(data); writes++; }catch(_){}
+  }
+  logBox.append(el("div",{class:"muted small"},`اتحدّث ${writes} سطر في ${monthLabel(ym)}. Snapchat محسوب على 28 يوم سوايب / يوم فيو، وMeta على إعداد الإسناد بتاع الحساب.`));
+  try{ await state.db.doc("clients/"+c.id).update({lastSync:{at:new Date().toISOString(),by:state.uid,month:ym}}); }catch(_){}
+  $("syncBtn").textContent="سحب الأرقام من المنصات"; renderAll();
+});
+
+function applyWriteState(){
+  const dis=!state.canWrite;
+  ["eSubmit","saveTarget","saveDaily","delDaily","saveStore","doPaste","toggleEntry","togglePaste","addClient","saveClient","delClient","addManualAcc"].forEach(id=>{$(id).disabled=dis;});
+  if(dis && state.db) status("عندك صلاحية عرض بس. اطلب من صاحب الصفحة صلاحية Contributor عشان تسجل وتعدل.","warn");
+}
+
+// ---------- subscriptions ----------
+function subscribeClient(){
+  for(const u of state.unsubs) try{u();}catch(_){} state.unsubs=[];
+  const cid=state.cid; if(!state.db||!cid) return;
+  const onErr=()=>status("حصلت مشكلة في تحميل الداتا. اعمل ريفريش للصفحة.","bad");
+  let pinned=false;
+  const q=col=>state.db.collection(col).where("clientId","==",cid);
+  state.unsubs.push(q("daily").onSnapshot(s=>{ if(state.cid!==cid) return; state.daily=s.docs.map(d=>({id:d.id,...d.data()})); if(!pinned&&state.daily.length&&!state.monthTouched){ state.month=latestDataMonth(); pinned=true; } renderAll(); }, onErr));
+  state.unsubs.push(q("store").onSnapshot(s=>{ if(state.cid!==cid) return; state.store=s.docs.map(d=>({id:d.id,...d.data()})); renderAll(); }, onErr));
+  state.unsubs.push(q("targets").onSnapshot(s=>{ if(state.cid!==cid) return; state.targets=Object.fromEntries(s.docs.map(d=>{const t=d.data(); return [t.month,t];})); renderAll(); }, onErr));
+  state.unsubs.push(q("edits").orderBy("at","desc").limit(1000).onSnapshot(s=>{ if(state.cid!==cid) return; state.edits=s.docs.map(d=>({id:d.id,...d.data()})); if(state.view==="dashboard") renderEdits(); resolveNames(); }, onErr));
+}
+$("month").addEventListener("change",()=>{state.monthTouched=true;});
+
+// ---------- boot ----------
+route();
+(async function boot(){
+  const [db,user,mcp]=await Promise.all([claude.use("db"),claude.use("user"),claude.use("mcp")]);
+  state.db=db; state.user=user; state.mcp=mcp;
+  if(!mcp) { $("mcpNotice").textContent="سحب الحسابات والأرقام مباشرة من المنصات مش مفعل على الصفحة دي لسه. تقدر تضيف الحسابات يدويًا وتدخل الأرقام أو تلصقها من الشيت."; $("mcpNotice").classList.remove("hidden"); }
+  if(!db){ status("الداتا مش متاحة في العرض ده. افتح الصفحة وانت مسجل دخول.","warn"); $("whoami").textContent=""; applyWriteState(); renderAll(); return; }
+  if(user){ try{ state.uid=await user.id(); }catch(_){} try{ const me=await user.me(); $("whoami").textContent = me?.name ? `مسجل باسم ${me.name}` : ""; }catch(_){ $("whoami").textContent=""; } }
+  let cw=null; try{ cw=user?await user.can("data.write"):null; }catch(_){}
+  state.canWrite = cw!==false && !!state.uid;
+  applyWriteState();
+  const timer=setTimeout(()=>{ if(!state.loadedClients) status("الاتصال بالداتا متأخر. جرب تعمل ريفريش.","warn"); },10000);
+  db.collection("clients").onSnapshot(s=>{
+    state.clients=s.docs.map(d=>({id:d.id,...d.data()}));
+    if(!s.metadata.fromCache){ state.loadedClients=true; clearTimeout(timer); if(state.canWrite) status(""); }
+    if(!state.cid || !state.clients.some(c=>c.id===state.cid)){
+      const saved=lsGet("ops.client"); const pick=state.clients.find(c=>c.id===saved)||state.clients[0];
+      if(pick){ state.cid=null; selectClient(pick.id); return; }
+      else if(state.cid){ state.cid=null; subscribeClient(); }
+    }
+    renderAll();
+  }, ()=>status("حصلت مشكلة في تحميل العملاء. اعمل ريفريش للصفحة.","bad"));
+  if(state.uid){ try{ const st=await db.doc(`data/users/${state.uid}/state`).get(); state.lastSeen = st.exists ? (st.data().lastSeen||null) : new Date(0).toISOString(); renderAll(); }catch(_){} }
+})();
+})();
+</script>
+</body>
+</html>
