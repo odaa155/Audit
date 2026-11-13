@@ -408,7 +408,10 @@ $("eAt").value = nowLocalInput(); $("dDate").value = todayISO(); $("sDate").valu
 
 // ---------- routing ----------
 function route(){
-  const v = (location.hash||"#dashboard").slice(1);
+  let v = (location.hash||"#dashboard").slice(1);
+  if(v.includes("?")){ const [h,qs]=v.split("?"); v=h; const q=new URLSearchParams(qs);
+    if(q.get("conn")){ const lbl=PMAP[q.get("conn")]?.label||q.get("conn"); setTimeout(()=>toast(q.get("ok")==="1"?`اتربط ${lbl} بنجاح`:`ربط ${lbl} ما نجحش: ${q.get("msg")||""}`),300); }
+    history.replaceState(null,"","#"+h); }
   state.view = ["dashboard","accounts","targets"].includes(v) ? v : "dashboard";
   for(const name of ["dashboard","accounts","targets"]) $("view-"+name).classList.toggle("hidden", name!==state.view);
   document.querySelectorAll("nav.tabs a").forEach(a=>a.setAttribute("aria-current", a.dataset.view===state.view?"page":"false"));
@@ -682,7 +685,17 @@ function renderConnectors(){
     const btn=el("button",{type:"button"}, found?.loading?"جاري التحميل…":(found?"تحديث القائمة":`اعرض حساباتي على ${p.label}`));
     btn.disabled=!state.mcp||found?.loading||!client();
     btn.addEventListener("click",()=>loadAccounts(key));
+    const cs=(window.auditConn||{})[key];
+    if(cs && (!cs.connected || cs.expired)){
+      box.append(el("div",{class:"conn-head"},el("h3",{},platChip(key))));
+      const note = !cs.configured ? `ربط ${p.label} محتاج إعداد App ID و Secret على السيرفر الأول.`
+        : !cs.isAdmin ? `الأدمن لازم يربط حساب ${p.label} الأول.` : (cs.expired ? `صلاحية ربط ${p.label} انتهت. اعمل ربط تاني.` : `اربط حسابك على ${p.label} مرة واحدة، وبعدها كل الحسابات اللي عندك صلاحية عليها هتظهر هنا.`);
+      box.append(el("p",{class:"muted small",style:"margin:0 0 10px"},note));
+      if(cs.configured && cs.isAdmin) box.append(el("a",{href:"/api/connect/"+key,class:"btn-link",style:"display:inline-block;padding:8px 14px;border-radius:9px;background:var(--accent,#2948c7);color:#fff;text-decoration:none;font-size:14px"},`ربط ${p.label}`));
+      continue;
+    }
     box.append(el("div",{class:"conn-head"},el("h3",{},platChip(key)),btn));
+    if(cs?.connected) box.append(el("div",{class:"muted small",style:"margin:-4px 0 8px"},`متربط${cs.name?" بحساب "+cs.name:""}`, cs.isAdmin?" · ":"", cs.isAdmin?el("a",{href:"/api/connect/"+key},"إعادة ربط"):""));
     if(!found){ box.append(el("p",{class:"muted small",style:"margin:0"}, state.mcp?"اعرض حساباتك واختار اللي تبع العميل المختار.":"الربط المباشر مش مفعل على الصفحة دي لسه.")); continue; }
     if(found.error){ box.append(el("div",{class:"notice bad small"},found.error)); continue; }
     if(found.list){
@@ -706,8 +719,10 @@ function renderConnectors(){
 }
 function mcpErrorText(e, server){
   const code=e?.code||"";
-  if(code==="server_not_connected") return `${server} مش متوصل. ضيفه من claude.ai ← Settings ← Connectors.`;
-  if(code==="needs_reauth") return `محتاج تعيد ربط ${server} من claude.ai ← Settings ← Connectors.`;
+  if(code==="server_not_connected") return `${server} مش مربوط. اربطه من صفحة الحسابات والعملاء.`;
+  if(code==="needs_reauth") return `صلاحية ربط ${server} انتهت. اعمل "إعادة ربط" من صفحة الحسابات والعملاء.`;
+  if(code==="not_configured") return `ربط ${server} محتاج إعداد على السيرفر.`;
+  if(code==="forbidden") return e.message;
   if(code==="not_in_manifest") return `الصفحة مش مسموح لها تستخدم ${server}. اسمح لها من إعدادات الصفحة.`;
   if(code==="approval_required") return "محتاج موافقتك. افتح الصفحة على claude.ai واضغط تاني.";
   if(code==="selection_required") return `عندك أكتر من ${server} متوصل. اختار واحد من claude.ai.`;
@@ -729,7 +744,7 @@ async function loadAccounts(key){
         cursor=pl.next_cursor; guard++; } while(cursor && guard<10);
     } else if(key==="tiktok"){
       const r=await callMcp(p.server,"auth_advertiser_get",{}); const pl=r.payload||{};
-      for(const a of pl?.data?.list||[]) list.push({accountId:String(a.advertiser_id),name:a.advertiser_name,currency:null});
+      for(const a of pl?.data?.list||[]) list.push({accountId:String(a.advertiser_id),name:a.advertiser_name,currency:a.currency||null,bad:a.status&&a.status!=="STATUS_ENABLE"?a.status:null});
     } else if(key==="snapchat"){
       for(const rel of ["owned","shared"]){
         let cursor=null, guard=0;

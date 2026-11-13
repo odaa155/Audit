@@ -37,7 +37,14 @@
   };
   let meP = null; const me = () => meP || (meP = api('/api/me'));
   const user = { id: async () => (await me()).id, me: async () => me(), can: async () => true, profiles: async () => api('/api/profiles') };
-  window.claude = { use: async name => name === 'db' ? db : name === 'user' ? user : null };
+  const mcp = { async callTool(server, tool, input) {
+    const r = await api('/api/mcp', { method: 'POST', body: JSON.stringify({ server, tool, input }) });
+    if (r.error) { const e = new Error(r.error.message); e.code = r.error.code; throw e; }
+    return { payload: r.payload };
+  } };
+  window.auditConn = {};
+  window.auditConnReady = api('/api/connections').then(c => { window.auditConn = c; return c; }).catch(() => ({}));
+  window.claude = { use: async name => name === 'db' ? db : name === 'user' ? user : name === 'mcp' ? (await window.auditConnReady, mcp) : null };
   me().then(u => { if (u.role === 'admin') { const run = () => { const l = document.getElementById('usersLink'); if (l) l.style.display = ''; else setTimeout(run, 200); }; run(); } }).catch(() => {});
   poll();
 })();

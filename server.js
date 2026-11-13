@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
+import * as P from './platforms.js';
 
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || '/data';
@@ -14,11 +15,17 @@ CREATE TABLE IF NOT EXISTS docs (path TEXT PRIMARY KEY, col TEXT NOT NULL, id TE
 CREATE INDEX IF NOT EXISTS docs_col ON docs(col);
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v INTEGER);
 INSERT OR IGNORE INTO meta VALUES ('version', 0);
+CREATE TABLE IF NOT EXISTS connections (platform TEXT PRIMARY KEY, data TEXT NOT NULL, by TEXT, at TEXT);
 CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, pw TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'buyer', clients TEXT NOT NULL DEFAULT '[]', created TEXT);`);
 const hashPw = (pw, salt = crypto.randomBytes(16).toString('hex')) => salt + ':' + crypto.scryptSync(String(pw), salt, 32).toString('hex');
 const checkPw = (pw, stored) => { const [salt, h] = stored.split(':'); const a = Buffer.from(h, 'hex'), b = crypto.scryptSync(String(pw), salt, 32); return a.length === b.length && crypto.timingSafeEqual(a, b); };
 const getUser = id => { const u = db.prepare('SELECT * FROM users WHERE id=?').get(id); return u ? { ...u, clients: JSON.parse(u.clients) } : null; };
 const userCount = () => db.prepare('SELECT COUNT(*) n FROM users').get().n;
+const connStore = {
+  get: p => { const r = db.prepare('SELECT data FROM connections WHERE platform=?').get(p); return r ? JSON.parse(r.data) : null; },
+  set: (p, d, by) => db.prepare('INSERT INTO connections(platform,data,by,at) VALUES(?,?,?,?) ON CONFLICT(platform) DO UPDATE SET data=excluded.data, by=COALESCE(excluded.by,connections.by), at=COALESCE(excluded.at,connections.at)').run(p, JSON.stringify(d), by || null, by ? new Date().toISOString() : null),
+};
+const oauthStates = new Map();
 const pub = u => ({ id: u.id, name: u.name, role: u.role, clients: u.clients });
 const bump = () => db.prepare(`UPDATE meta SET v = v + 1 WHERE k='version'`).run();
 const version = () => db.prepare(`SELECT v FROM meta WHERE k='version'`).get().v;
@@ -79,6 +86,34 @@ const server = http.createServer(async (req, res) => {
           bump(); return send(res, 200, { ok: true });
         }
         if (req.method === 'DELETE') { if (id === me.id) return send(res, 400, { error: 'مينفعش تمسح نفسك' }); db.prepare('DELETE FROM users WHERE id=?').run(id); return send(res, 200, { ok: true }); }
+      }
+      if (p === '/api/connections') {
+        return send(res, 200, Object.fromEntries(Object.entries(P.PLATFORMS).map(([k, v]) => { const c = connStore.get(k);
+          return [k, { configured: v.configured(), connected: !!c, name: c?.name || '', expired: !!(c && k === 'meta' && c.expires_at && Date.now() > c.expires_at), expiresAt: c?.expires_at || null, isAdmin: me.role === 'admin' }]; })));
+      }
+      const mConnect = p.match(/^\/api\/connect\/(meta|tiktok|snapchat)$/);
+      if (mConnect) {
+        if (me.role !== 'admin') return send(res, 403, { error: 'الربط للأدمن بس' });
+        const plat = P.PLATFORMS[mConnect[1]]; if (!plat.configured()) return send(res, 400, { error: 'App ID مش متحط في السيرفر' });
+        const st = P.newState(); oauthStates.set(st, { p: mConnect[1], u: me.id, exp: Date.now() + 15 * 60000 });
+        res.writeHead(302, { Location: plat.authUrl(st) }); return res.end();
+      }
+      const mCb = p.match(/^\/api\/oauth\/(meta|tiktok|snapchat)\/callback$/);
+      if (mCb) {
+        const st = oauthStates.get(q.get('state')); oauthStates.delete(q.get('state'));
+        const back = (ok, msg) => { res.writeHead(302, { Location: '/#accounts?' + new URLSearchParams({ conn: mCb[1], ok: ok ? '1' : '0', msg: msg || '' }) }); res.end(); };
+        if (!st || st.p !== mCb[1] || st.exp < Date.now() || st.u !== me.id) return back(false, 'انتهت مهلة الربط، جرب تاني');
+        try { const data = await P.exchange(mCb[1], q); connStore.set(mCb[1], data, me.id); return back(true); }
+        catch (e) { console.error('oauth', mCb[1], e.message); return back(false, e.message); }
+      }
+      if (p === '/api/mcp' && req.method === 'POST') {
+        const { tool, input } = await body(req);
+        const isAdm = me.role === 'admin'; const allowedC = new Set(me.clients);
+        const norm = x => String(x).replace(/^act_/, '');
+        const canUseAccount = (plat, acc) => isAdm || db.prepare('SELECT id,data FROM docs WHERE col=?').all('clients')
+          .some(r => allowedC.has(r.id) && (JSON.parse(r.data).accounts || []).some(a => a.platform === plat && norm(a.accountId) === norm(acc)));
+        try { return send(res, 200, { payload: await P.callTool(tool, input, connStore, canUseAccount) }); }
+        catch (e) { console.error('mcp', tool, e.code, e.message); return send(res, 200, { error: { code: e.code || 'tool_error', message: e.message } }); }
       }
       // صلاحيات: الميديا بايرز يشوف ويعدل العملاء المتعينين له بس
       const isAdmin = me.role === 'admin'; const allowed = new Set(me.clients);

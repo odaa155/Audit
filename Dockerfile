@@ -1,6 +1,6 @@
 FROM node:24-alpine
 WORKDIR /app
-COPY package.json server.js ./
+COPY package.json server.js platforms.js ./
 COPY public ./public
 ENV NODE_ENV=production PORT=3000 DATA_DIR=/data
 RUN mkdir -p /data
