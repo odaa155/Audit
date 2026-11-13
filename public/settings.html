@@ -1,0 +1,63 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>audit — الإعدادات</title>
+<style>
+body{margin:0;background:#f3f4f8;color:#1f2430;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:24px 20px}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+h1{font-size:22px;margin:0}h2{font-size:17px;margin:0;display:flex;gap:8px;align-items:center}a{color:#2948c7}
+.card{background:#fff;border:1px solid #e3e6ee;border-radius:12px;padding:18px;margin-bottom:16px}
+.head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+label{font-size:13px;color:#6b7280;display:grid;gap:5px}
+input{padding:9px 10px;border-radius:8px;border:1px solid #d8dce5;font-size:14px;width:100%;box-sizing:border-box;direction:ltr;text-align:left}
+button{padding:9px 14px;border:0;border-radius:8px;background:#2948c7;color:#fff;font-size:14px;cursor:pointer}
+button.ghost{background:#eef1f8;color:#1f2430}button.danger{background:#fde8e8;color:#c53030}
+.redir{display:flex;gap:8px;align-items:center;background:#f6f7fb;border:1px dashed #d8dce5;border-radius:8px;padding:8px 10px;margin:12px 0;font-size:13px}
+.redir code{direction:ltr;flex:1;overflow:auto;white-space:nowrap}
+.pill{font-size:12px;padding:3px 9px;border-radius:10px}.ok{background:#e3f6ea;color:#1f7a3d}.no{background:#fff3dc;color:#8a5a00}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.help{font-size:13px;color:#4b5563;line-height:1.8;margin:10px 0 0;padding-inline-start:18px}
+.row{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+#msg{min-height:20px;font-size:14px;margin-bottom:10px}
+</style></head><body><div class="wrap">
+<header><h1>الإعدادات: ربط المنصات</h1><a href="/#accounts">← رجوع للبرنامج</a></header>
+<div id="msg"></div>
+<div id="cards"></div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const PL=[
+ {k:"meta",label:"Meta / Instagram",color:"#d6337f",id:"META_APP_ID",sec:"META_APP_SECRET",idL:"App ID",secL:"App Secret",
+  help:["ادخل developers.facebook.com ← My Apps ← Create App، واختار نوع Business.","من Add products ضيف Marketing API و Facebook Login for Business.","في Facebook Login ← Settings، الصق الـ Redirect URL اللي فوق في Valid OAuth Redirect URIs.","من App settings ← Basic، انسخ App ID و App Secret وحطهم هنا."]},
+ {k:"snapchat",label:"Snapchat",color:"#e6c300",id:"SNAP_CLIENT_ID",sec:"SNAP_CLIENT_SECRET",idL:"Client ID",secL:"Client Secret",
+  help:["ادخل Snapchat Business Manager ← Business Settings ← Business Details.","من OAuth Apps اضغط + OAuth App، والصق الـ Redirect URL اللي فوق.","انسخ Client ID و Client Secret وحطهم هنا. الـ Secret بيظهر مرة واحدة بس."]},
+ {k:"tiktok",label:"TikTok",color:"#25c4cf",id:"TIKTOK_APP_ID",sec:"TIKTOK_APP_SECRET",idL:"App ID",secL:"Secret",
+  help:["ادخل business-api.tiktok.com ← My Apps ← Create a developer app.","في Advertiser redirect URL الصق الـ Redirect URL اللي فوق.","فعّل صلاحيات Ad Account Management و Reporting، وابعت الـ App للمراجعة (1–3 أيام).","بعد الموافقة انسخ App ID و Secret وحطهم هنا."]},
+];
+async function api(url,opts={}){const r=await fetch(url,{headers:{'Content-Type':'application/json'},...opts}); if(r.status===401){location.href='/login.html';throw 0} const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||'حصلت مشكلة'); return j;}
+const msg=(t,ok)=>{$('msg').textContent=t;$('msg').style.color=ok?'#1f7a3d':'#c53030'; scrollTo({top:0,behavior:'smooth'});};
+async function load(){
+  const me=await api('/api/me'); if(me.role!=='admin'){document.body.innerHTML='<div class="wrap"><p>الصفحة دي للأدمن بس. <a href="/">رجوع</a></p></div>';return;}
+  const [s,conn]=await Promise.all([api('/api/settings'),api('/api/connections')]);
+  $('cards').innerHTML='';
+  for(const p of PL){
+    const idv=s.keys[p.id], sv=s.keys[p.sec], c=conn[p.k], ready=idv.set&&sv.set;
+    const st=!ready?'<span class="pill no">محتاج App ID</span>':c.connected&&!c.expired?`<span class="pill ok">متربط${c.name?' · '+c.name:''}</span>`:'<span class="pill no">جاهز للربط</span>';
+    const d=document.createElement('div'); d.className='card'; d.id=p.k;
+    d.innerHTML=`<div class="head"><h2><span class="dot" style="background:${p.color}"></span>${p.label}</h2>${st}</div>
+      <div class="redir"><span>Redirect URL:</span><code>${s.redirects[p.k]}</code><button class="ghost copy" type="button">نسخ</button></div>
+      <div class="grid"><label>${p.idL}<input class="iid" value="${idv.value||''}" autocomplete="off"></label>
+      <label>${p.secL}<input class="isec" type="password" placeholder="${sv.set?sv.value+' (سيبه فاضي لو مش هتغيره)':''}" autocomplete="new-password"></label></div>
+      <div class="row"><button class="save" type="button">حفظ</button>${ready?`<a href="/api/connect/${p.k}"><button class="ghost" type="button">${c.connected?'إعادة ربط':'ربط الحساب دلوقتي'}</button></a><button class="danger reset" type="button">مسح الإعدادات</button>`:''}</div>
+      <details style="margin-top:12px"><summary style="cursor:pointer;font-size:14px">إزاي أجيب الـ ${p.idL} والـ ${p.secL}؟</summary><ol class="help">${p.help.map(h=>`<li>${h}</li>`).join('')}</ol></details>`;
+    d.querySelector('.copy').onclick=()=>{navigator.clipboard.writeText(s.redirects[p.k]); msg('اتنسخ الـ Redirect URL',1);};
+    d.querySelector('.save').onclick=async()=>{ const body={[p.id]:d.querySelector('.iid').value,[p.sec]:d.querySelector('.isec').value};
+      if(!body[p.id].trim()) return msg(`اكتب الـ ${p.idL}`); if(!sv.set&&!body[p.sec].trim()) return msg(`اكتب الـ ${p.secL}`);
+      try{ await api('/api/settings',{method:'PUT',body:JSON.stringify(body)}); msg(`اتحفظت إعدادات ${p.label}. اضغط "ربط الحساب دلوقتي".`,1); load(); }catch(e){msg(e.message)} };
+    const rs=d.querySelector('.reset'); if(rs) rs.onclick=async()=>{ if(!confirm(`هتمسح إعدادات وربط ${p.label}. متأكد؟`)) return; try{ await api('/api/settings?platform='+p.k,{method:'DELETE'}); msg('اتمسح',1); load(); }catch(e){msg(e.message)} };
+    $('cards').append(d);
+  }
+  if(location.hash) document.querySelector(location.hash)?.scrollIntoView();
+}
+load();
+</script></body></html>

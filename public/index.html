@@ -168,6 +168,7 @@ details.panel[open]>summary{margin-bottom:12px}
     <a href="#accounts" data-view="accounts">الحسابات والعملاء</a>
     <a href="#targets" data-view="targets">التارجت</a>
     <a href="/users.html" id="usersLink" style="display:none">المستخدمين</a>
+    <a href="/settings.html" id="settingsLink" style="display:none">الإعدادات</a>
     <a href="/api/logout" style="margin-inline-start:auto">خروج</a>
   </nav>
 </div>
@@ -688,9 +689,10 @@ function renderConnectors(){
     const cs=(window.auditConn||{})[key];
     if(cs && (!cs.connected || cs.expired)){
       box.append(el("div",{class:"conn-head"},el("h3",{},platChip(key))));
-      const note = !cs.configured ? `ربط ${p.label} محتاج إعداد App ID و Secret على السيرفر الأول.`
+      const note = !cs.configured ? `ربط ${p.label} محتاج App ID و Secret. حطهم من صفحة الإعدادات.`
         : !cs.isAdmin ? `الأدمن لازم يربط حساب ${p.label} الأول.` : (cs.expired ? `صلاحية ربط ${p.label} انتهت. اعمل ربط تاني.` : `اربط حسابك على ${p.label} مرة واحدة، وبعدها كل الحسابات اللي عندك صلاحية عليها هتظهر هنا.`);
       box.append(el("p",{class:"muted small",style:"margin:0 0 10px"},note));
+      if(!cs.configured && cs.isAdmin) box.append(el("a",{href:"/settings.html#"+key,style:"display:inline-block;padding:8px 14px;border-radius:9px;background:var(--accent,#2948c7);color:#fff;text-decoration:none;font-size:14px"},"افتح الإعدادات"));
       if(cs.configured && cs.isAdmin) box.append(el("a",{href:"/api/connect/"+key,class:"btn-link",style:"display:inline-block;padding:8px 14px;border-radius:9px;background:var(--accent,#2948c7);color:#fff;text-decoration:none;font-size:14px"},`ربط ${p.label}`));
       continue;
     }
@@ -721,7 +723,7 @@ function mcpErrorText(e, server){
   const code=e?.code||"";
   if(code==="server_not_connected") return `${server} مش مربوط. اربطه من صفحة الحسابات والعملاء.`;
   if(code==="needs_reauth") return `صلاحية ربط ${server} انتهت. اعمل "إعادة ربط" من صفحة الحسابات والعملاء.`;
-  if(code==="not_configured") return `ربط ${server} محتاج إعداد على السيرفر.`;
+  if(code==="not_configured") return `ربط ${server} محتاج App ID من صفحة الإعدادات.`;
   if(code==="forbidden") return e.message;
   if(code==="not_in_manifest") return `الصفحة مش مسموح لها تستخدم ${server}. اسمح لها من إعدادات الصفحة.`;
   if(code==="approval_required") return "محتاج موافقتك. افتح الصفحة على claude.ai واضغط تاني.";

@@ -4,7 +4,9 @@ import crypto from 'node:crypto';
 
 const BASE = (process.env.PUBLIC_URL || 'https://audit.mahmoudbedier.com').replace(/\/$/, '');
 const META_V = 'v21.0';
-const env = k => (process.env[k] || '').trim();
+let cfgSource = () => null;
+export const setConfigSource = fn => { cfgSource = fn; };
+const env = k => String(cfgSource(k) ?? process.env[k] ?? '').trim();
 
 export const PLATFORMS = {
   meta: {

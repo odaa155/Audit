@@ -45,6 +45,6 @@
   window.auditConn = {};
   window.auditConnReady = api('/api/connections').then(c => { window.auditConn = c; return c; }).catch(() => ({}));
   window.claude = { use: async name => name === 'db' ? db : name === 'user' ? user : name === 'mcp' ? (await window.auditConnReady, mcp) : null };
-  me().then(u => { if (u.role === 'admin') { const run = () => { const l = document.getElementById('usersLink'); if (l) l.style.display = ''; else setTimeout(run, 200); }; run(); } }).catch(() => {});
+  me().then(u => { if (u.role === 'admin') { const run = () => { const l = document.getElementById('usersLink'), l2 = document.getElementById('settingsLink'); if (l) { l.style.display = ''; if (l2) l2.style.display = ''; } else setTimeout(run, 200); }; run(); } }).catch(() => {});
   poll();
 })();

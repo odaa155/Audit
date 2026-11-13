@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS docs (path TEXT PRIMARY KEY, col TEXT NOT NULL, id TE
 CREATE INDEX IF NOT EXISTS docs_col ON docs(col);
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v INTEGER);
 INSERT OR IGNORE INTO meta VALUES ('version', 0);
+CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT);
 CREATE TABLE IF NOT EXISTS connections (platform TEXT PRIMARY KEY, data TEXT NOT NULL, by TEXT, at TEXT);
 CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, pw TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'buyer', clients TEXT NOT NULL DEFAULT '[]', created TEXT);`);
 const hashPw = (pw, salt = crypto.randomBytes(16).toString('hex')) => salt + ':' + crypto.scryptSync(String(pw), salt, 32).toString('hex');
@@ -26,6 +27,9 @@ const connStore = {
   set: (p, d, by) => db.prepare('INSERT INTO connections(platform,data,by,at) VALUES(?,?,?,?) ON CONFLICT(platform) DO UPDATE SET data=excluded.data, by=COALESCE(excluded.by,connections.by), at=COALESCE(excluded.at,connections.at)').run(p, JSON.stringify(d), by || null, by ? new Date().toISOString() : null),
 };
 const oauthStates = new Map();
+const SETTING_KEYS = { META_APP_ID: 0, META_APP_SECRET: 1, TIKTOK_APP_ID: 0, TIKTOK_APP_SECRET: 1, SNAP_CLIENT_ID: 0, SNAP_CLIENT_SECRET: 1 };
+const getSetting = k => { const r = db.prepare('SELECT v FROM settings WHERE k=?').get(k); return r ? r.v : null; };
+P.setConfigSource(getSetting);
 const pub = u => ({ id: u.id, name: u.name, role: u.role, clients: u.clients });
 const bump = () => db.prepare(`UPDATE meta SET v = v + 1 WHERE k='version'`).run();
 const version = () => db.prepare(`SELECT v FROM meta WHERE k='version'`).get().v;
@@ -86,6 +90,19 @@ const server = http.createServer(async (req, res) => {
           bump(); return send(res, 200, { ok: true });
         }
         if (req.method === 'DELETE') { if (id === me.id) return send(res, 400, { error: 'مينفعش تمسح نفسك' }); db.prepare('DELETE FROM users WHERE id=?').run(id); return send(res, 200, { ok: true }); }
+      }
+      if (p === '/api/settings') {
+        if (me.role !== 'admin') return send(res, 403, { error: 'admins only' });
+        if (req.method === 'GET') return send(res, 200, { keys: Object.fromEntries(Object.entries(SETTING_KEYS).map(([k, secret]) => { const v = getSetting(k) || '';
+          return [k, secret ? { set: !!v, value: v ? '••••••••' + v.slice(-4) : '' } : { set: !!v, value: v }]; })),
+          redirects: { meta: P.cb('meta'), tiktok: P.cb('tiktok'), snapchat: P.cb('snapchat') } });
+        if (req.method === 'PUT') { const b = await body(req);
+          for (const [k, v] of Object.entries(b || {})) { if (!(k in SETTING_KEYS) || typeof v !== 'string') continue; const t = v.trim(); if (!t) continue;
+            db.prepare('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v').run(k, t); }
+          return send(res, 200, { ok: true }); }
+        if (req.method === 'DELETE') { const plat = { meta: ['META_APP_ID', 'META_APP_SECRET'], tiktok: ['TIKTOK_APP_ID', 'TIKTOK_APP_SECRET'], snapchat: ['SNAP_CLIENT_ID', 'SNAP_CLIENT_SECRET'] }[q.get('platform')];
+          if (!plat) return send(res, 400, { error: 'platform' }); for (const k of plat) db.prepare('DELETE FROM settings WHERE k=?').run(k);
+          db.prepare('DELETE FROM connections WHERE platform=?').run(q.get('platform')); return send(res, 200, { ok: true }); }
       }
       if (p === '/api/connections') {
         return send(res, 200, Object.fromEntries(Object.entries(P.PLATFORMS).map(([k, v]) => { const c = connStore.get(k);
