@@ -6,3 +6,4 @@ Env:
 - Platform connections (optional per platform): META_APP_ID, META_APP_SECRET, TIKTOK_APP_ID, TIKTOK_APP_SECRET, SNAP_CLIENT_ID, SNAP_CLIENT_SECRET
 - OAuth redirect URLs: https://audit.mahmoudbedier.com/api/oauth/{meta|tiktok|snapchat}/callback
 - SESSION_SECRET = long random string
+- Auto-deploy: GitHub webhook → Coolify on every push to main.
