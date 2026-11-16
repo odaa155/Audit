@@ -13,7 +13,9 @@ export const client = () => state.clients.find(c => c.id === state.cid) || null;
 export const cur = () => client()?.currency || "SAR";
 export const nameOf = id => id === state.uid ? "أنت" : (state.names[id] || "زميل");
 export const isAdmin = () => state.me?.role === "admin";
-export const isNewEdit = e => e.authorId !== state.uid && state.lastSeen && (e.createdAt || e.at) > state.lastSeen;
+// System changes: imported from a platform with no person behind them (e.g. Meta approving an ad)
+export const isSystemEdit = e => e.source === "api" && !e.authorId && /^(meta|facebook|snapchat|tiktok|)$/i.test(String(e.authorName || "").trim());
+export const isNewEdit = e => e.authorId !== state.uid && !isSystemEdit(e) && state.lastSeen && (e.createdAt || e.at) > state.lastSeen;
 
 export function guard() {
   if (!state.db || !state.canWrite) { toast("لا يمكن الحفظ: تحتاج إلى صلاحية تعديل.", "bad"); return false; }

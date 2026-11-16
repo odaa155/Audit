@@ -1,7 +1,7 @@
 // Change log: what each media buyer changed on the ad accounts, so teammates see it instantly.
-import { $, el, icon, dayLabel, platChip, nowLocalInput, emptyState, fillPlatSelect, openDialog, closeDialog, confirmDialog, addDays, fmt0, fmt2, div, PMAP } from "../lib.js";
+import { $, el, icon, dayLabel, platChip, lsGet, lsSet, nowLocalInput, emptyState, fillPlatSelect, openDialog, closeDialog, confirmDialog, addDays, fmt0, fmt2, div, PMAP } from "../lib.js";
 import { openTask } from "./tasks.js";
-import { state, client, nameOf, guard, safe, isNewEdit } from "../store.js";
+import { state, client, nameOf, guard, safe, isNewEdit, isSystemEdit } from "../store.js";
 const whoKey = e => e.authorId || (e.authorName ? "ext:" + e.authorName : "");
 const whoName = e => e.authorId ? nameOf(e.authorId) : (e.authorName || "المنصة");
 
@@ -15,6 +15,10 @@ export function init() {
   $("ePlat").addEventListener("change", renderEditAccSelect);
   ["fPlat", "fWho", "fType"].forEach(id => $(id).addEventListener("change", renderEdits));
   $("fQ").addEventListener("input", renderEdits);
+  $("fSys").checked = lsGet("ops.clSys") !== "0";
+  $("fSys").addEventListener("change", () => { lsSet("ops.clSys", $("fSys").checked ? "1" : "0"); limit = PAGE; renderEdits(); });
+  for (const b of document.querySelectorAll("#clView button")) b.addEventListener("click", () => { view = b.dataset.v; lsSet("ops.clView", view); renderEdits(); });
+  for (const id of ["fPlat", "fWho", "fType"]) $(id).addEventListener("change", () => { limit = PAGE; });
   $("openEdit").addEventListener("click", () => { $("eAt").value = nowLocalInput(); renderEditAccSelect(); openDialog("editDlg"); });
   $("editForm").addEventListener("submit", submit);
   $("markSeen").addEventListener("click", markSeen);
@@ -94,7 +98,12 @@ function impactRow(e) {
   return box;
 }
 
+const PAGE = 150;
+let view = lsGet("ops.clView") || (matchMedia("(max-width: 700px)").matches ? "cards" : "table"), limit = PAGE;
+const openRows = new Set();
+
 export function renderEdits() {
+  document.querySelectorAll("#clView button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === view)));
   const log = $("log"); log.innerHTML = "";
   const fp = $("fPlat").value, ft = $("fType").value, q = $("fQ").value.trim().toLowerCase();
   const who = [...new Set(state.edits.map(whoKey).filter(Boolean))];
@@ -107,7 +116,8 @@ export function renderEdits() {
   if (newOnes.length) { $("newCount").append(el("span", { class: "pill new" }, `${newOnes.length} تعديل جديد من زملائك`)); $("markSeen").classList.remove("hidden"); }
   else $("markSeen").classList.add("hidden");
   const { from, to } = state.range;
-  const list = state.edits.filter(e => (!e.at || (e.at.slice(0, 10) >= from && e.at.slice(0, 10) <= to)) && (!fp || e.platform === fp) && (!fw || whoKey(e) === fw) && (!ft || e.type === ft) && (!q || (e.entity || "").toLowerCase().includes(q) || (e.note || "").toLowerCase().includes(q)));
+  const hideSys = $("fSys").checked;
+  const list = state.edits.filter(e => (!hideSys || !isSystemEdit(e)) && (!e.at || (e.at.slice(0, 10) >= from && e.at.slice(0, 10) <= to)) && (!fp || e.platform === fp) && (!fw || whoKey(e) === fw) && (!ft || e.type === ft) && (!q || (e.entity || "").toLowerCase().includes(q) || (e.note || "").toLowerCase().includes(q)));
   if (!list.length) {
     log.append(state.edits.length
       ? emptyState("search", "لا توجد نتائج", "لا توجد تعديلات في هذه الفترة أو بهذه التصفية. جرّب فترة أطول أو أزل بعض عوامل التصفية.")
@@ -115,13 +125,75 @@ export function renderEdits() {
           state.canWrite ? el("button", { class: "btn-primary", type: "button", onclick: () => $("openEdit").click() }, icon("plus", "ic sm"), "سجّل تعديل") : null));
     return;
   }
-  const groups = {}; for (const e of list) { const d = (e.at || "").slice(0, 10); (groups[d] = groups[d] || []).push(e); }
+  const inRange = state.edits.filter(e => !e.at || (e.at.slice(0, 10) >= from && e.at.slice(0, 10) <= to));
+  const sysHidden = hideSys ? inRange.filter(isSystemEdit).length : 0;
+  $("clCount").textContent = `${list.length} تعديل` + (sysHidden ? ` · ${sysHidden} تغيير نظام مخفي` : "");
+  if (view === "table") { log.append(editsTable(list)); return; }
+  const groups = {}; for (const e of list.slice(0, limit)) { const d = (e.at || "").slice(0, 10); (groups[d] = groups[d] || []).push(e); }
   for (const d of Object.keys(groups).sort().reverse()) {
     const g = el("div", { class: "log-day" }, el("h3", {}, d ? dayLabel(d) : "بدون تاريخ", el("span", { class: "pill plain" }, String(groups[d].length))));
     for (const e of groups[d]) g.append(editCard(e));
     log.append(g);
   }
+  if (list.length > limit) log.append(moreBtn(list.length));
 }
+
+const moreBtn = total => el("div", { class: "actions", style: "justify-content:center" },
+  el("button", { type: "button", onclick: () => { limit += PAGE; renderEdits(); } }, `عرض المزيد (${Math.min(PAGE, total - limit)} من ${total - limit} متبقٍ)`));
+
+// ---------- compact table view: one row per edit, details on click ----------
+function impactCell(e) {
+  const r = editImpact(e);
+  if (!r || r.state === "nodata") return el("span", { class: "muted" }, "—");
+  if (r.state === "pending") return el("span", { class: "muted small", title: "لم تكتمل 3 أيام من البيانات بعد التعديل" }, `بعد ${r.pending} ${r.pending === 1 ? "يوم" : "أيام"}`);
+  const cls = { up: "good", down: "bad", flat: "plain" }[r.verdict];
+  return el("span", { class: "pill " + cls, title: `ROAS ${fmt2(r.b.roas)} ← ${fmt2(r.a.roas)} · CPA ${fmt0(r.b.cpa)} ← ${fmt0(r.a.cpa)}` }, r.rCh == null ? "—" : `ROAS ${r.rCh >= 0 ? "+" : "−"}${Math.abs(r.rCh * 100).toFixed(0)}%`);
+}
+function editsTable(list) {
+  const wrap = el("div", { class: "tbl-wrap cl-wrap" }), t = el("table", { class: "cl-tbl" });
+  t.append(el("thead", {}, el("tr", {}, el("th", {}, "الوقت"), el("th", {}, "المنصة"), el("th", {}, "النوع"), el("th", {}, "المستوى"), el("th", {}, "الحملة / المجموعة / الإعلان"), el("th", {}, "قبل ← بعد"), el("th", {}, "الأثر"), el("th", {}, "بواسطة"), el("th", {}, ""))));
+  const tb = el("tbody"); let lastDay = null;
+  for (const e of list.slice(0, limit)) {
+    const day = (e.at || "").slice(0, 10);
+    if (day !== lastDay) { lastDay = day; const n = list.filter(x => (x.at || "").slice(0, 10) === day).length; tb.append(el("tr", { class: "grp" }, el("td", { colspan: 9 }, day ? dayLabel(day) : "بدون تاريخ", el("span", { class: "pill plain" }, String(n))))); }
+    const open = openRows.has(e.id), isNew = isNewEdit(e);
+    const linked = state.tasks.filter(t => t.editId === e.id).length;
+    const actions = el("td", { class: "cl-act" });
+    if (state.canWrite) actions.append(linked
+      ? el("a", { class: "pill plain", href: "#tasks", title: "مهام مرتبطة", onclick: ev => ev.stopPropagation() }, icon("check", "ic sm"), String(linked))
+      : el("button", { class: "btn-ghost btn-sm icon-btn", type: "button", title: "إنشاء مهمة متابعة", "aria-label": "إنشاء مهمة متابعة", onclick: ev => { ev.stopPropagation(); newTaskFor(e); } }, icon("plus", "ic sm")));
+    if (e.authorId === state.uid && state.canWrite) actions.append(el("button", { class: "btn-ghost btn-sm icon-btn", type: "button", title: "حذف", "aria-label": "حذف التعديل", onclick: ev => { ev.stopPropagation(); deleteEdit(e); } }, icon("trash", "ic sm")));
+    const tr = el("tr", { class: "click" + (isNew ? " is-new" : "") + (open ? " open" : ""), tabindex: "0", "aria-expanded": String(open), title: "اضغط لعرض التفاصيل" },
+      el("td", { class: "num cl-time" }, (e.at || "").slice(11, 16), isNew ? el("span", { class: "new-dot", "aria-label": "جديد" }) : null),
+      el("td", { title: e.accountId ? accName(e.platform, e.accountId) : "" }, platChip(e.platform)),
+      el("td", {}, el("span", { class: "pill neutral" }, e.type || "Other")),
+      el("td", { class: "muted small" }, e.level || ""),
+      el("td", { class: "cl-entity", title: e.entity || "" }, e.entity || "", e.source === "api" ? el("span", { class: "auto-tag", title: "مستورد تلقائيًا من المنصة" }, icon("refresh", "ic sm")) : null),
+      el("td", { class: "cl-change" }, el("span", { class: "before" }, e.before || "-"), el("span", { class: "arrow" }, "←"), el("span", { class: "after" }, e.after || "-")),
+      el("td", {}, impactCell(e)),
+      el("td", { class: "muted small cl-who", title: whoName(e) }, whoName(e)),
+      actions);
+    const toggle = () => { open ? openRows.delete(e.id) : openRows.add(e.id); renderEdits(); };
+    tr.addEventListener("click", toggle); tr.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); toggle(); } });
+    tb.append(tr);
+    if (open) {
+      const det = el("div", { class: "cl-detail" },
+        el("div", { class: "cl-detail-grid" },
+          el("span", {}, el("span", { class: "muted" }, "الحساب: "), e.accountId ? accName(e.platform, e.accountId) : "—"),
+          el("span", {}, el("span", { class: "muted" }, "الوقت: "), (e.at || "").replace("T", " ").slice(0, 16)),
+          el("span", {}, el("span", { class: "muted" }, "المصدر: "), e.source === "api" ? "مستورد تلقائيًا" : "تسجيل يدوي")),
+        el("div", { class: "entity" }, e.entity || ""),
+        e.note ? el("div", { class: "why" }, icon("message", "ic sm"), e.note) : null,
+        impactRow(e));
+      tb.append(el("tr", { class: "cl-detail-row" }, el("td", { colspan: 9 }, det)));
+    }
+  }
+  t.append(tb); wrap.append(t);
+  const frag = document.createDocumentFragment(); frag.append(wrap);
+  if (list.length > limit) frag.append(moreBtn(list.length));
+  return frag;
+}
+const newTaskFor = e => openTask(null, { editId: e.id, title: `متابعة: ${e.type || "تعديل"} على ${e.entity || ""}`.slice(0, 200), platform: e.platform, due: addDays((e.at || "").slice(0, 10) || new Date().toISOString().slice(0, 10), 3) });
 
 async function submit(ev) {
   ev.preventDefault(); const c = client(); if (!c || !guard()) return;
