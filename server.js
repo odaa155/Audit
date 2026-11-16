@@ -129,7 +129,17 @@ const server = http.createServer(async (req, res) => {
         const norm = x => String(x).replace(/^act_/, '');
         const canUseAccount = (plat, acc) => isAdm || db.prepare('SELECT id,data FROM docs WHERE col=?').all('clients')
           .some(r => allowedC.has(r.id) && (JSON.parse(r.data).accounts || []).some(a => a.platform === plat && norm(a.accountId) === norm(acc)));
-        try { return send(res, 200, { payload: await P.callTool(tool, input, connStore, canUseAccount) }); }
+        try {
+          const payload = await P.callTool(tool, input, connStore, canUseAccount);
+          // مسؤول الحملات يرى فقط الحسابات المربوطة بالعملاء المعيّنين له
+          if (!isAdm && payload) {
+            const mine = plat => { const s = new Set(); for (const r of db.prepare('SELECT id,data FROM docs WHERE col=?').all('clients')) if (allowedC.has(r.id)) for (const a of JSON.parse(r.data).accounts || []) if (a.platform === plat) s.add(norm(a.accountId)); return s; };
+            if (tool === 'ads_get_ad_accounts') { const m = mine('meta'); payload.ad_accounts = (payload.ad_accounts || []).filter(a => m.has(norm(a.ad_account_id))); }
+            if (tool === 'auth_advertiser_get' && payload.data) { const m = mine('tiktok'); payload.data.list = (payload.data.list || []).filter(a => m.has(norm(a.advertiser_id))); }
+            if (tool === 'snap_ads_get_my_ad_accounts') { const m = mine('snapchat'); payload.adaccounts = (payload.adaccounts || []).filter(w => m.has(norm((w.adaccount || w).id))); }
+          }
+          return send(res, 200, { payload });
+        }
         catch (e) { console.error('mcp', tool, e.code, e.message); return send(res, 200, { error: { code: e.code || 'tool_error', message: e.message } }); }
       }
       // الصلاحيات: مسؤول الحملات يرى ويعدّل العملاء المعيّنين له فقط
@@ -149,6 +159,10 @@ const server = http.createServer(async (req, res) => {
         if (req.method === 'PUT') { const { data, merge } = await body(req); let d = data || {};
           if (!canSee(col, id, { ...(curData || {}), ...d })) return send(res, 403, { error: 'ليس لديك صلاحية' });
           if (merge) { const r = db.prepare('SELECT data FROM docs WHERE path=?').get(key); if (!r) return send(res, 404, { error: 'not found' }); d = { ...JSON.parse(r.data), ...d }; }
+          if (col === 'clients' && cur && !isAdmin) {
+            const keys = x => JSON.stringify((x.accounts || []).map(a => a.platform + ':' + a.accountId).sort());
+            if (keys(d) !== keys(curData)) return send(res, 403, { error: 'ربط الحسابات بالعملاء متاح للمدير فقط' });
+          }
           db.prepare('INSERT INTO docs(path,col,id,data) VALUES(?,?,?,?) ON CONFLICT(path) DO UPDATE SET data=excluded.data').run(key, col, id, JSON.stringify(d)); bump(); return send(res, 200, { ok: true }); }
         if (req.method === 'DELETE') { db.prepare('DELETE FROM docs WHERE path=?').run(key); bump(); return send(res, 200, { ok: true }); }
       }

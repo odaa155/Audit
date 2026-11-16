@@ -29,19 +29,23 @@ export function render() {
   $("openAddClient").classList.toggle("hidden", !isAdmin());
   $("linkedTitle").textContent = c ? `حسابات ${c.name}` : "حسابات العميل";
   $("openManual").disabled = !c || !state.canWrite;
+  // ربط الحسابات بالعملاء للمدير فقط؛ مسؤول الحملات يرى حسابات عملائه فقط
+  $("openManual").classList.toggle("hidden", !isAdmin());
+  $("connSection").classList.toggle("hidden", !isAdmin());
 
   const t = $("linkedTbl"); t.innerHTML = "";
   t.append(el("thead", {}, el("tr", {}, el("th", {}, "المنصة"), el("th", {}, "الحساب"), el("th", {}, "رقم الحساب"), el("th", {}, "العملة"), el("th", { class: "n" }, `التحويل لـ ${cur()}`), el("th", {}, "المصدر"), el("th", {}, ""))));
   const tb = el("tbody");
   const accs = c?.accounts || [];
   if (!c) tb.append(el("tr", {}, el("td", { colspan: 7, class: "muted-cell" }, "اختر عميلًا أو أضف عميلًا جديدًا أولًا.")));
-  else if (!accs.length) tb.append(el("tr", {}, el("td", { colspan: 7, class: "muted-cell" }, "لا توجد حسابات مربوطة بهذا العميل. اختر حساباته من المنصات بالأسفل أو أضف حسابًا يدويًا.")));
+  else if (!accs.length) tb.append(el("tr", {}, el("td", { colspan: 7, class: "muted-cell" }, isAdmin() ? "لا توجد حسابات مربوطة بهذا العميل. اختر حساباته من المنصات بالأسفل أو أضف حسابًا يدويًا." : "لم يربط المدير أي حسابات بهذا العميل بعد.")));
   accs.forEach((a, i) => {
     const fx = el("input", { type: "number", step: "any", min: "0", value: a.fx ?? 1, "aria-label": "سعر التحويل", id: "fx_" + i, style: "width:110px;text-align:left", dir: "ltr" });
     fx.disabled = !state.canWrite;
     fx.addEventListener("change", () => updateAccount(i, { fx: +fx.value || 1 }));
     const rm = el("button", { class: "btn-ghost btn-sm", type: "button", "aria-label": "إزالة الحساب" }, icon("x", "ic sm"), "إزالة");
     rm.disabled = !state.canWrite; rm.addEventListener("click", () => removeAccount(i, a));
+    if (!isAdmin()) rm.classList.add("hidden");
     tb.append(el("tr", {}, el("td", {}, platChip(a.platform)), el("td", {}, a.name || "-"), el("td", { class: "num" }, a.accountId), el("td", {}, a.currency || "-"), el("td", { class: "n" }, fx),
       el("td", {}, a.via === "api" ? el("span", { class: "pill good" }, icon("link", "ic sm"), "مربوط بالمنصة") : el("span", { class: "pill plain" }, "يدوي")), el("td", {}, rm)));
   });
@@ -76,22 +80,41 @@ function renderConnectors() {
     if (!found) { box.append(el("p", { class: "muted small" }, client() ? `اعرض حساباتك واختر الحسابات التابعة لـ ${client().name}.` : "اختر عميلًا أولًا.")); continue; }
     if (found.error) { box.append(notice("bad", found.error)); continue; }
     if (found.list) {
-      const c = client(); const mine = new Set((c?.accounts || []).filter(a => a.platform === key).map(a => a.accountId));
-      const others = {}; for (const oc of state.clients) if (oc.id !== state.cid) for (const a of oc.accounts || []) if (a.platform === key) others[a.accountId] = oc.name;
+      const tools = el("div", { class: "acc-tools" });
+      const q = el("input", { type: "search", placeholder: "ابحث بالاسم أو رقم الحساب…", "aria-label": `البحث في حسابات ${p.label}`, value: found.q || "" });
+      const onlyCb = el("input", { type: "checkbox" }); onlyCb.checked = !!found.only;
+      const count = el("div", { class: "muted small" });
       const list = el("div", { class: "acc-list" });
-      if (!found.list.length) list.append(el("p", { class: "muted small" }, "لا توجد حسابات ظاهرة على هذا الربط."));
-      for (const a of found.list) {
-        const id = `chk_${key}_${slug(a.accountId)}`;
-        const cb = el("input", { type: "checkbox", id }); cb.checked = mine.has(a.accountId); cb.disabled = !state.canWrite;
-        cb.addEventListener("change", () => toggleAccount(key, a, cb.checked));
-        const meta = el("label", { class: "meta", for: id }, el("b", {}, a.name || a.accountId), el("span", {}, `${a.accountId}${a.currency ? " · " + a.currency : ""}`));
-        const tags = el("div", { style: "display:grid;gap:4px;justify-items:end" });
-        if (a.bad) tags.append(el("span", { class: "pill bad" }, a.bad));
-        if (others[a.accountId]) tags.append(el("span", { class: "pill warn" }, "مع " + others[a.accountId]));
-        list.append(el("div", { class: "acc" }, cb, meta, tags));
-      }
-      box.append(el("div", { class: "muted small" }, `${mine.size} من ${found.list.length} مختار لـ ${c?.name || ""}`), list);
+      tools.append(el("div", { class: "search" }, icon("search", "ic sm"), q), el("label", { class: "check-chip" }, onlyCb, "المختارة فقط"));
+      q.addEventListener("input", () => { found.q = q.value; drawList(key, list, count); });
+      onlyCb.addEventListener("change", () => { found.only = onlyCb.checked; drawList(key, list, count); });
+      box.append(tools, count, list);
+      drawList(key, list, count);
     }
+  }
+}
+
+function drawList(key, list, count) {
+  const found = state.found[key], c = client();
+  const mine = new Set((c?.accounts || []).filter(a => a.platform === key).map(a => a.accountId));
+  const others = {}; for (const oc of state.clients) if (oc.id !== state.cid) for (const a of oc.accounts || []) if (a.platform === key) others[a.accountId] = oc.name;
+  const q = (found.q || "").trim().toLowerCase();
+  const shown = found.list
+    .filter(a => (!found.only || mine.has(a.accountId)) && (!q || (a.name || "").toLowerCase().includes(q) || String(a.accountId).toLowerCase().includes(q)))
+    .sort((a, b) => (mine.has(b.accountId) ? 1 : 0) - (mine.has(a.accountId) ? 1 : 0));
+  count.textContent = `${mine.size} مختار من ${found.list.length} لـ ${c?.name || ""}` + (q || found.only ? ` · يظهر ${shown.length}` : "");
+  list.innerHTML = "";
+  if (!found.list.length) { list.append(el("p", { class: "muted small" }, "لا توجد حسابات ظاهرة على هذا الربط.")); return; }
+  if (!shown.length) { list.append(el("p", { class: "muted small", style: "text-align:center;padding:16px" }, "لا توجد حسابات تطابق البحث.")); return; }
+  for (const a of shown) {
+    const id = `chk_${key}_${slug(a.accountId)}`;
+    const cb = el("input", { type: "checkbox", id }); cb.checked = mine.has(a.accountId); cb.disabled = !state.canWrite || !isAdmin();
+    cb.addEventListener("change", () => toggleAccount(key, a, cb.checked));
+    const meta = el("label", { class: "meta", for: id }, el("b", {}, a.name || a.accountId), el("span", {}, `${a.accountId}${a.currency ? " · " + a.currency : ""}`));
+    const tags = el("div", { style: "display:grid;gap:4px;justify-items:end" });
+    if (a.bad) tags.append(el("span", { class: "pill bad" }, a.bad));
+    if (others[a.accountId]) tags.append(el("span", { class: "pill warn" }, "مع " + others[a.accountId]));
+    list.append(el("div", { class: "acc" }, cb, meta, tags));
   }
 }
 

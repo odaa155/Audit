@@ -302,6 +302,11 @@ td.muted-cell{color:var(--muted);text-align:center;padding:28px}
 .conn{display:grid;gap:12px;align-content:start}
 .conn-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .conn-state{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.acc-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.acc-tools .search{position:relative;flex:1;min-width:160px}
+.acc-tools .search input{padding-inline-start:34px;min-height:36px}
+.acc-tools .search .ic{position:absolute;inset-inline-start:11px;top:50%;transform:translateY(-50%);color:var(--faint);pointer-events:none}
+.acc-tools .check-chip{padding:5px 10px;font-size:12.5px}
 .acc-list{display:grid;gap:6px;max-height:420px;overflow:auto;padding:2px}
 .acc{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:9px 11px;border:1px solid var(--line);border-radius:9px;transition:border-color .15s,background .15s}
 .acc:hover{border-color:var(--line-strong)}
