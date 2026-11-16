@@ -4,6 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import * as P from './platforms.js';
+import { syncClient, startAutoSync } from './sync.js';
 
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || '/data';
@@ -123,6 +124,13 @@ const server = http.createServer(async (req, res) => {
         try { const data = await P.exchange(mCb[1], q); connStore.set(mCb[1], data, me.id); return back(true); }
         catch (e) { console.error('oauth', mCb[1], e.message); return back(false, e.message); }
       }
+      if (p === '/api/sync' && req.method === 'POST') {
+        const { clientId, month } = await body(req);
+        if (!clientId || !/^\d{4}-\d{2}$/.test(String(month || ''))) return send(res, 400, { error: 'clientId / month' });
+        if (me.role !== 'admin' && !me.clients.includes(clientId)) return send(res, 403, { error: 'ليس لديك صلاحية على هذا العميل' });
+        try { return send(res, 200, await syncClient({ db, P, connStore, bump, clientId, month, by: me.id })); }
+        catch (e) { console.error('sync', clientId, e.message); return send(res, 500, { error: e.message }); }
+      }
       if (p === '/api/mcp' && req.method === 'POST') {
         const { tool, input } = await body(req);
         const isAdm = me.role === 'admin'; const allowedC = new Set(me.clients);
@@ -188,3 +196,4 @@ const server = http.createServer(async (req, res) => {
   } catch (e) { console.error(e); send(res, 500, { error: 'server error' }); }
 });
 server.listen(PORT, () => console.log('audit listening on ' + PORT));
+if (process.env.AUTO_SYNC !== 'off') startAutoSync({ db, P, connStore, bump });

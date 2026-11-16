@@ -3,6 +3,7 @@ import { $, el, initial, monthLabel, lsGet, lsSet, toast, status, PMAP, emptySta
 import { state, hooks, client, isAdmin, isNewEdit, monthsAvailable, latestDataMonth } from "./store.js";
 import * as overview from "./views/overview.js";
 import * as performance from "./views/performance.js";
+import { todayISO } from "./lib.js";
 import * as changelog from "./views/changelog.js";
 import * as accounts from "./views/accounts.js";
 import * as targets from "./views/targets.js";
@@ -98,11 +99,27 @@ function renderAll() {
   if (blocked && state.loadedClients) $("noClient").append(emptyState("briefcase", "لا يوجد عملاء بعد", isAdmin() ? "ابدأ بإضافة عميل ثم اربط حساباته الإعلانية." : "لم يعيّن لك المدير أي عملاء بعد.", isAdmin() ? el("a", { class: "btn btn-primary", href: "#accounts" }, icon("plus", "ic sm"), "إضافة عميل") : null));
   $("view-" + state.view).classList.toggle("hidden", blocked);
   if (!blocked && (state.db || V.admin)) V.mod.render();
+  maybeAutoSync();
   // nav badge: unseen edits from teammates
   const n = state.edits.filter(isNewEdit).length;
   $("navBadge").textContent = n > 99 ? "99+" : String(n); $("navBadge").classList.toggle("hidden", !n);
 }
 hooks.renderAll = renderAll;
+
+// جلب تلقائي عند فتح عميل إذا كانت أرقام الشهر قديمة (أكثر من ساعة) أو غير موجودة
+const autoSynced = new Set();
+function maybeAutoSync() {
+  const c = client(); if (!c || !state.db || !state.canWrite || !state.mcp || !state.loadedClients || state.syncing) return;
+  if (!(c.accounts || []).some(a => a.via === "api")) return;
+  const ym = state.month; if (!ym || ym > todayISO().slice(0, 7)) return;
+  const key = c.id + "|" + ym; if (autoSynced.has(key)) return;
+  const ls = c.lastSync, fresh = ls?.at && ls.month === ym && Date.now() - new Date(ls.at).getTime() < 3600e3;
+  const isCurrent = ym === todayISO().slice(0, 7);
+  const hasRows = state.daily.some(r => r.date?.startsWith(ym) && r.source === "api");
+  if (fresh || (!isCurrent && hasRows)) return;
+  autoSynced.add(key);
+  setTimeout(() => performance.runSync({ silent: true }), 300);
+}
 
 function applyWriteState() {
   const dis = !state.canWrite;

@@ -1,5 +1,6 @@
 // Accounts & clients: manage clients, link ad accounts to the selected client, browse connected platform accounts.
 import { $, el, icon, slug, initial, platChip, PMAP, FX_DEFAULT, fillPlatSelect, fillCurSelect, toast, openDialog, closeDialog, confirmDialog, emptyState, notice } from "../lib.js";
+import { runSync } from "./performance.js";
 import { state, hooks, client, cur, guard, safe, isAdmin, callMcp, mcpErrorText } from "../store.js";
 
 export function init() {
@@ -157,7 +158,7 @@ async function toggleAccount(key, a, on) {
   let accounts = [...(c.accounts || [])];
   if (on && !accounts.some(x => x.platform === key && x.accountId === a.accountId)) accounts.push({ platform: key, accountId: a.accountId, name: a.name || "", currency: a.currency || null, timezone: a.timezone || null, fx: suggestFx(a.currency), via: "api" });
   if (!on) accounts = accounts.filter(x => !(x.platform === key && x.accountId === a.accountId));
-  if (await saveAccounts(accounts)) toast(on ? "تم ربط الحساب بالعميل" : "تمت إزالة الحساب", "good");
+  if (await saveAccounts(accounts)) { toast(on ? "تم ربط الحساب بالعميل، وجارٍ جلب أرقامه" : "تمت إزالة الحساب", "good"); if (on) runSync({ silent: true }); }
 }
 async function updateAccount(i, patch) { const c = client(); const accounts = (c.accounts || []).map((a, j) => j === i ? { ...a, ...patch } : a); if (await saveAccounts(accounts)) toast("تم حفظ سعر التحويل", "good"); }
 async function removeAccount(i, a) {
