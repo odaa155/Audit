@@ -296,6 +296,7 @@ td.muted-cell{color:var(--muted);text-align:center;padding:28px}
 .change .before{background:var(--bad-soft);color:var(--bad);border-radius:6px;padding:2px 9px;text-decoration:line-through;text-decoration-thickness:1px}
 .change .after{background:var(--good-soft);color:var(--good);border-radius:6px;padding:2px 9px;font-weight:600}
 .change .arrow{color:var(--faint)}
+.change .before,.change .after{direction:ltr;unicode-bidi:isolate}
 .edit .why{font-size:13px;color:var(--muted);display:flex;gap:6px}
 .edit.compact{padding:10px 14px;gap:4px}
 .recent{display:grid;gap:8px}

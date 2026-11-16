@@ -1,6 +1,8 @@
 // Change log: what each media buyer changed on the ad accounts, so teammates see it instantly.
 import { $, el, icon, dayLabel, platChip, nowLocalInput, emptyState, fillPlatSelect, openDialog, closeDialog, confirmDialog } from "../lib.js";
 import { state, client, nameOf, guard, safe, isNewEdit } from "../store.js";
+const whoKey = e => e.authorId || (e.authorName ? "ext:" + e.authorName : "");
+const whoName = e => e.authorId ? nameOf(e.authorId) : (e.authorName || "المنصة");
 
 export const EDIT_TYPES = ["Budget", "Bid / Cost cap", "Status (On/Off)", "Targeting", "Creative", "Optimization event", "Placement", "Schedule", "New launch", "Other"];
 const LEVELS = ["Campaign", "Ad set / Ad group", "Ad", "Account", "Catalog / Pixel"];
@@ -30,7 +32,7 @@ const accName = (p, id) => (client()?.accounts || []).find(a => a.platform === p
 
 export function editCard(e, compact = false) {
   const card = el("article", { class: "edit" + (compact ? " compact" : "") + (isNewEdit(e) ? " is-new" : "") });
-  const who = el("span", { class: "who" }, icon("user", "ic sm"), el("span", {}, nameOf(e.authorId)), el("span", { class: "num" }, compact ? (e.at || "").slice(5, 16).replace("T", " ") : (e.at || "").slice(11, 16)));
+  const who = el("span", { class: "who" }, icon("user", "ic sm"), el("span", {}, whoName(e)), el("span", { class: "num" }, compact ? (e.at || "").slice(5, 16).replace("T", " ") : (e.at || "").slice(11, 16)));
   if (!compact && e.authorId === state.uid && state.canWrite) {
     who.append(el("button", { class: "btn-ghost btn-sm icon-btn", type: "button", "aria-label": "حذف التعديل", title: "حذف", onclick: () => deleteEdit(e) }, icon("trash", "ic sm")));
   }
@@ -38,6 +40,7 @@ export function editCard(e, compact = false) {
     e.accountId && !compact ? el("span", { class: "muted small" }, accName(e.platform, e.accountId)) : null,
     el("span", { class: "pill neutral" }, e.type || "Other"),
     !compact && e.level ? el("span", { class: "pill plain" }, e.level) : null,
+    e.source === "api" ? el("span", { class: "pill plain", title: "مستورد تلقائيًا من سجل نشاط المنصة" }, icon("refresh", "ic sm"), "تلقائي") : null,
     isNewEdit(e) ? el("span", { class: "pill new" }, "جديد") : null, who));
   card.append(el("div", { class: "entity" }, e.entity || ""));
   card.append(el("div", { class: "change" }, el("span", { class: "before" }, e.before || "-"), el("span", { class: "arrow" }, "←"), el("span", { class: "after" }, e.after || "-")));
@@ -48,16 +51,16 @@ export function editCard(e, compact = false) {
 export function renderEdits() {
   const log = $("log"); log.innerHTML = "";
   const fp = $("fPlat").value, ft = $("fType").value, q = $("fQ").value.trim().toLowerCase();
-  const who = [...new Set(state.edits.map(e => e.authorId).filter(Boolean))];
+  const who = [...new Set(state.edits.map(whoKey).filter(Boolean))];
   const curW = $("fWho").value; $("fWho").innerHTML = ""; $("fWho").append(el("option", { value: "" }, "كل المسؤولين"));
-  for (const w of who) $("fWho").append(el("option", { value: w }, nameOf(w)));
+  for (const w of who) $("fWho").append(el("option", { value: w }, w.startsWith("ext:") ? w.slice(4) : nameOf(w)));
   $("fWho").value = who.includes(curW) ? curW : "";
   const fw = $("fWho").value;
   const newOnes = state.edits.filter(isNewEdit);
   $("newCount").innerHTML = "";
   if (newOnes.length) { $("newCount").append(el("span", { class: "pill new" }, `${newOnes.length} تعديل جديد من زملائك`)); $("markSeen").classList.remove("hidden"); }
   else $("markSeen").classList.add("hidden");
-  const list = state.edits.filter(e => (!fp || e.platform === fp) && (!fw || e.authorId === fw) && (!ft || e.type === ft) && (!q || (e.entity || "").toLowerCase().includes(q) || (e.note || "").toLowerCase().includes(q)));
+  const list = state.edits.filter(e => (!fp || e.platform === fp) && (!fw || whoKey(e) === fw) && (!ft || e.type === ft) && (!q || (e.entity || "").toLowerCase().includes(q) || (e.note || "").toLowerCase().includes(q)));
   if (!list.length) {
     log.append(state.edits.length
       ? emptyState("search", "لا توجد نتائج", "لا توجد تعديلات تطابق هذه التصفية. جرّب إزالة بعض عوامل التصفية.")

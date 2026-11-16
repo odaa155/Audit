@@ -52,7 +52,6 @@ function renderTarget() {
     el("div", {}, el("span", {}, "المتوقع آخر الشهر"), el("b", { class: "num" }, fmt0(forecast)), el("span", {}, pct(forecastPct, 1) + " من الهدف")),
     el("div", {}, el("span", {}, "الطلبات"), el("b", { class: "num" }, fmt0(b.orders)), el("span", {}, t.orders ? `من ${fmt0(t.orders)}` : `AOV ${fmt2(b.aov)}`)),
     el("div", {}, el("span", {}, "الأساس"), el("b", {}, b.basis === "store" ? "المتجر" : "المنصات"), el("span", {}, b.basis === "store" ? "Total Store" : "Total platform"))));
-  if (b.fellBack) prog.append(notice("warn", "لا توجد أرقام Total Store لهذا الشهر، لذا يُحسب التقدم مؤقتًا على مبيعات المنصات."));
 
   const kpis = el("div", { class: "kpis stack" },
     kpi("wallet", "الصرف", fmt0(md.tot.spend), C, t.budget ? `${pct(div(md.tot.spend, t.budget), 1)} من ميزانية ${fmt0(t.budget)}` : "لا توجد ميزانية محددة"),

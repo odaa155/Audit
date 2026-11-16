@@ -38,7 +38,7 @@ export function render() {
 function fillForm() {
   const ym = $("tMonth").value || state.month; const t = state.targets[ym] || {};
   if (["tSales", "tBudget", "tRoas", "tOrders", "tBasis"].includes(document.activeElement?.id)) return;
-  $("tSales").value = t.sales || ""; $("tBudget").value = t.budget || ""; $("tRoas").value = t.roas || ""; $("tOrders").value = t.orders || ""; $("tBasis").value = t.basis || "store";
+  $("tSales").value = t.sales || ""; $("tBudget").value = t.budget || ""; $("tRoas").value = t.roas || ""; $("tOrders").value = t.orders || ""; $("tBasis").value = t.basis || "platform";
   $("tMsg").textContent = t.updatedAt ? `آخر تعديل ${t.updatedAt.slice(0, 10)} بواسطة ${nameOf(t.updatedBy)}` : "";
   $("delTarget").classList.toggle("hidden", !t.sales);
   $("delTarget").disabled = !state.canWrite;

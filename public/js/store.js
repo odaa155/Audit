@@ -49,7 +49,7 @@ export function monthData(ym) {
   return { rows, store, dates, byPlat, tot, storeTot, spendOnStoreDays, lastDate: dates[dates.length - 1] || null };
 }
 export function basisNumbers(md, t) {
-  const basis = t?.basis || "store";
+  const basis = t?.basis || "platform";
   if (basis === "store" && md.storeTot.days > 0) return { basis: "store", sales: md.storeTot.sales, orders: md.storeTot.orders, roas: div(md.storeTot.sales, md.spendOnStoreDays), aov: div(md.storeTot.sales, md.storeTot.orders) };
   return { basis: "platform", sales: md.tot.sales, orders: md.tot.orders, roas: div(md.tot.sales, md.tot.spend), aov: div(md.tot.sales, md.tot.orders), fellBack: basis === "store" };
 }

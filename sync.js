@@ -1,3 +1,4 @@
+import { syncEdits } from './edits-sync.js';
 // جلب الأرقام اليومية من Meta وTikTok وSnapchat على الخادم وتخزينها في جدول daily
 const pad = n => String(n).padStart(2, '0');
 const isoOf = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -80,7 +81,9 @@ export async function syncClient({ db, P, connStore, bump, clientId, month, by =
   fresh.lastSync = { at: new Date().toISOString(), by, month, ok: results.filter(r => r.ok).length, failed: results.filter(r => !r.ok).length };
   db.prepare('UPDATE docs SET data=? WHERE path=?').run(JSON.stringify(fresh), 'clients/' + clientId);
   bump();
-  return { results, writes };
+  let edits = null;
+  try { edits = await syncEdits({ db, P, connStore, bump, clientId }); } catch (e) { console.error('edits sync', clientId, e.message); }
+  return { results, writes, edits };
 }
 
 // تحديث تلقائي لكل العملاء: الشهر الحالي، والشهر السابق في أول 3 أيام

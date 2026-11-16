@@ -191,3 +191,15 @@ export async function callTool(tool, input, store, canUseAccount) {
   return await def.run(tok, input || {});
 }
 export const newState = () => crypto.randomBytes(16).toString('hex');
+
+// ---------- قراءة مباشرة (للسجل التلقائي للتعديلات) ----------
+export async function metaPaged(store, path, params, max = 10) {
+  const tok = await token('meta', store); const out = [];
+  let url = `https://graph.facebook.com/${META_V}/${path}?` + new URLSearchParams(params);
+  for (let g = 0; url && g < max; g++) {
+    const b = await metaGet(tok, url); out.push(...(b.data || []));
+    url = b.paging?.next ? b.paging.next.replace(/access_token=[^&]+&?/, '') : null;
+  }
+  return out;
+}
+export async function snapGet(store, path, params) { const tok = await token('snapchat', store); return snap(tok, path, params); }
