@@ -1,22 +1,78 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>audit — تسجيل الدخول</title>
-<style>
-body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f3f4f8;color:#1f2430;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif}
-form{width:min(360px,90vw);background:#fff;border:1px solid #e3e6ee;border-radius:14px;padding:28px;display:grid;gap:14px}
-h1{margin:0 0 4px;font-size:22px}p{margin:0;color:#6b7280;font-size:14px}
-input{padding:11px 12px;border-radius:9px;border:1px solid #d8dce5;font-size:15px}
-button{padding:11px;border:0;border-radius:9px;background:#2948c7;color:#fff;font-size:15px;cursor:pointer}
-#err{color:#c53030;font-size:14px;min-height:18px}.hide{display:none}
-</style></head><body>
-<form id="f"><h1>audit</h1><p id="sub">غرفة عمليات الحسابات الإعلانية</p>
-<input name="name" class="hide" placeholder="اسمك اللي هيظهر">
-<input name="username" placeholder="اسم المستخدم (إنجليزي)" autocomplete="username" required>
-<input name="password" type="password" placeholder="الباسورد" autocomplete="current-password" required>
-<button id="btn">دخول</button><div id="err"></div></form>
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f1530">
+<title>تسجيل الدخول · audit</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Readex+Pro:wght@500;600;700&display=swap" rel="stylesheet">
+<script>try{var t=localStorage.getItem("ops.theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+</svg>
+<div class="auth">
+  <aside class="auth-side">
+    <div class="brand" style="padding:0"><span class="brand-mark"><svg class="ic"><use href="#i-activity"/></svg></span><span><b>audit</b><span>غرفة عمليات الحسابات الإعلانية</span></span></div>
+    <div style="position:relative;z-index:1">
+      <h2>جميع حسابات عملائك الإعلانية وأهدافهم وتعديلات الفريق في مكان واحد.</h2>
+      <ul>
+        <li><svg class="ic"><use href="#i-check"/></svg>تابع التقدم نحو هدف الشهر يومًا بيوم</li>
+        <li><svg class="ic"><use href="#i-check"/></svg>اجلب الأرقام من Meta وTikTok وSnapchat مباشرة</li>
+        <li><svg class="ic"><use href="#i-check"/></svg>سجّل كل تعديل ليراه الفريق فورًا</li>
+      </ul>
+    </div>
+    <span class="small" style="color:var(--side-muted);position:relative;z-index:1">audit.mahmoudbedier.com</span>
+  </aside>
+  <main class="auth-main">
+    <form class="auth-card" id="f" novalidate>
+      <div style="display:grid;gap:6px">
+        <h1 id="ttl">مرحبًا بعودتك</h1>
+        <p class="muted" id="sub">سجّل الدخول للمتابعة.</p>
+      </div>
+      <label class="field hidden" id="nameWrap" for="name">اسمك كما سيظهر للفريق<input id="name" name="name" autocomplete="name"></label>
+      <label class="field" for="username">اسم المستخدم<input id="username" name="username" dir="ltr" autocomplete="username" autocapitalize="off" spellcheck="false" required></label>
+      <label class="field" for="password">كلمة المرور
+        <span class="pw-wrap"><input id="password" name="password" type="password" dir="ltr" autocomplete="current-password" required>
+        <button type="button" id="togglePw" aria-label="إظهار كلمة المرور" aria-pressed="false"><svg class="ic sm"><use href="#i-eye"/></svg></button></span>
+      </label>
+      <div class="err" id="err" role="alert"></div>
+      <button class="btn-primary" id="btn" type="submit">دخول</button>
+    </form>
+  </main>
+</div>
 <script>
-let setup=false;
-fetch('/api/setup').then(r=>r.json()).then(j=>{ if(j.needsSetup){ setup=true; f.name.classList.remove('hide'); sub.textContent='أول مرة: اعمل حساب الأدمن'; btn.textContent='إنشاء حساب الأدمن'; f.password.autocomplete='new-password'; }});
-f.onsubmit=async e=>{e.preventDefault();err.textContent='';
- const r=await fetch(setup?'/api/setup':'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:f.username.value,password:f.password.value,name:f.name.value})});
- if(r.ok) location.href='/'; else err.textContent=(await r.json().catch(()=>({}))).error||'حصلت مشكلة';};
-</script></body></html>
+const $ = id => document.getElementById(id);
+let setup = false;
+fetch('/api/setup').then(r => r.json()).then(j => {
+  if (!j.needsSetup) return;
+  setup = true; $('nameWrap').classList.remove('hidden');
+  $('ttl').textContent = 'أول استخدام؟ أنشئ حساب المدير';
+  $('sub').textContent = 'سيتولى هذا الحساب إضافة العملاء والمستخدمين وربط المنصات.';
+  $('btn').textContent = 'إنشاء حساب المدير';
+  $('password').autocomplete = 'new-password'; $('name').focus();
+}).catch(() => {});
+$('username').focus();
+$('togglePw').onclick = () => { const p = $('password'), show = p.type === 'password'; p.type = show ? 'text' : 'password'; $('togglePw').setAttribute('aria-pressed', String(show)); $('togglePw').setAttribute('aria-label', show ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'); };
+$('f').onsubmit = async e => {
+  e.preventDefault(); $('err').textContent = '';
+  const username = $('username').value.trim(), password = $('password').value;
+  if (!username || !password) { $('err').textContent = 'أدخل اسم المستخدم وكلمة المرور'; (username ? $('password') : $('username')).focus(); return; }
+  const btn = $('btn'); btn.disabled = true; btn.classList.add('loading');
+  try {
+    const r = await fetch(setup ? '/api/setup' : '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, name: $('name').value.trim() }) });
+    if (r.ok) { location.href = '/'; return; }
+    $('err').textContent = (await r.json().catch(() => ({}))).error || 'حدثت مشكلة';
+  } catch (_) { $('err').textContent = 'تعذّر الاتصال بالخادم. حاول مرة أخرى.'; }
+  btn.disabled = false; btn.classList.remove('loading');
+};
+</script>
+</body>
+</html>
