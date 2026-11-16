@@ -45,54 +45,59 @@
   <symbol id="i-bag" viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></symbol>
   <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></symbol>
   <symbol id="i-message" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
+  <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14M19 12l-7 7-7-7"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
 </svg>
 
 <div class="app">
-  <!-- ========== SIDEBAR ========== -->
-  <aside class="sidebar" id="sidebar" aria-label="القائمة الرئيسية">
-    <a class="brand" href="#overview">
-      <span class="brand-mark"><svg class="ic"><use href="#i-activity"/></svg></span>
-      <span><b>audit</b><span>غرفة عمليات الحسابات الإعلانية</span></span>
-    </a>
-    <nav class="nav-group" aria-label="المتابعة">
-      <div class="nav-label">المتابعة</div>
-      <a class="nav-item" href="#overview" data-view="overview"><svg class="ic"><use href="#i-grid"/></svg>نظرة عامة</a>
-      <a class="nav-item" href="#performance" data-view="performance"><svg class="ic"><use href="#i-chart"/></svg>الأداء اليومي</a>
-      <a class="nav-item" href="#changelog" data-view="changelog"><svg class="ic"><use href="#i-history"/></svg>سجل التعديلات<span class="nav-badge hidden" id="navBadge" aria-label="تعديلات جديدة"></span></a>
-    </nav>
-    <nav class="nav-group" aria-label="الإعداد">
-      <div class="nav-label">الإعداد</div>
-      <a class="nav-item" href="#targets" data-view="targets"><svg class="ic"><use href="#i-target"/></svg>الهدف</a>
-      <a class="nav-item" href="#accounts" data-view="accounts"><svg class="ic"><use href="#i-briefcase"/></svg>الحسابات والعملاء</a>
-    </nav>
-    <nav class="nav-group admin-only hidden" aria-label="الإدارة">
-      <div class="nav-label">الإدارة</div>
-      <a class="nav-item" href="#users" data-view="users"><svg class="ic"><use href="#i-users"/></svg>المستخدمون</a>
-      <a class="nav-item" href="#settings" data-view="settings"><svg class="ic"><use href="#i-sliders"/></svg>ربط المنصات</a>
-    </nav>
-    <div class="side-foot">
-      <div class="me"><span class="avatar" id="meAvatar">·</span><div style="min-width:0"><b id="meName">جارٍ التحميل…</b><span id="meRole"></span></div></div>
-      <div class="side-actions">
-        <button class="btn" type="button" id="themeBtn"><svg class="ic sm"><use href="#i-moon"/></svg><span>داكن</span></button>
-        <a class="btn" href="/api/logout"><svg class="ic sm"><use href="#i-logout"/></svg>خروج</a>
+  <header class="appbar">
+    <div class="appbar-in">
+      <a class="brand" href="#overview" aria-label="audit — الصفحة الرئيسية">
+        <span class="brand-mark"><svg class="ic"><use href="#i-activity"/></svg></span><b>audit</b>
+      </a>
+      <nav class="tabs" id="mainNav" aria-label="الصفحات">
+        <a class="tab" href="#overview" data-view="overview">نظرة عامة</a>
+        <a class="tab" href="#performance" data-view="performance">الأداء اليومي</a>
+        <a class="tab" href="#changelog" data-view="changelog">سجل التعديلات<span class="nav-badge hidden" id="navBadge" aria-label="تعديلات جديدة"></span></a>
+        <a class="tab" href="#targets" data-view="targets">الهدف</a>
+        <a class="tab" href="#accounts" data-view="accounts">الحسابات والعملاء</a>
+        <a class="tab admin-only hidden" href="#users" data-view="users">المستخدمون</a>
+        <a class="tab admin-only hidden" href="#settings" data-view="settings">ربط المنصات</a>
+      </nav>
+      <div class="appbar-end">
+        <span class="save-state" id="liveState" title="تتحدث البيانات تلقائيًا"><i></i>تحديث مباشر</span>
+        <button class="icon-btn btn-ghost" type="button" id="themeBtn" aria-label="تبديل الوضع الداكن"><svg class="ic"><use href="#i-moon"/></svg><span class="sr-only">داكن</span></button>
+        <div class="menu-wrap">
+          <button class="avatar-btn" type="button" id="meBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="meMenu"><span class="avatar" id="meAvatar">·</span></button>
+          <div class="menu hidden" id="meMenu" role="menu">
+            <div class="menu-head"><b id="meName">جارٍ التحميل…</b><span id="meRole"></span></div>
+            <a class="menu-item" role="menuitem" href="/api/logout"><svg class="ic sm"><use href="#i-logout"/></svg>تسجيل الخروج</a>
+          </div>
+        </div>
       </div>
     </div>
-  </aside>
-  <div class="scrim" id="scrim"></div>
+  </header>
 
-  <!-- ========== MAIN ========== -->
-  <div class="main">
-    <header class="topbar">
-      <button class="icon-btn menu-btn btn-ghost" id="menuBtn" type="button" aria-label="فتح القائمة" aria-controls="sidebar" aria-expanded="false"><svg class="ic"><use href="#i-menu"/></svg></button>
-      <div class="context">
-        <label class="picker" id="clientPicker" title="العميل"><svg class="ic sm"><use href="#i-briefcase"/></svg><span class="sr-only">العميل</span><select id="clientSel"><option value="">جارٍ التحميل…</option></select></label>
-        <label class="picker" id="monthPicker" title="الشهر"><svg class="ic sm"><use href="#i-calendar"/></svg><span class="sr-only">الشهر</span><select id="month"></select></label>
+  <!-- context filters: moved into the active page's header by main.js -->
+  <div class="filters" id="filters">
+    <label class="picker" id="clientPicker" title="العميل"><svg class="ic sm"><use href="#i-briefcase"/></svg><span class="sr-only">العميل</span><select id="clientSel"><option value="">جارٍ التحميل…</option></select></label>
+    <div class="range" id="rangePicker">
+      <button type="button" class="picker picker-btn" id="rangeBtn" aria-haspopup="true" aria-expanded="false" aria-controls="rangePop"><svg class="ic sm"><use href="#i-calendar"/></svg><span id="rangeLabel">هذا الشهر</span><svg class="ic sm chev"><use href="#i-chevron"/></svg></button>
+      <div class="popover hidden" id="rangePop" role="dialog" aria-label="اختيار الفترة">
+        <div class="presets" id="rangePresets" role="menu"></div>
+        <div class="custom">
+          <span class="small muted">فترة مخصصة</span>
+          <div class="custom-row"><label class="field" for="rFrom">من<input type="date" id="rFrom"></label><label class="field" for="rTo">إلى<input type="date" id="rTo"></label></div>
+          <button type="button" class="btn-primary btn-sm" id="rApply">تطبيق</button>
+        </div>
       </div>
-      <div class="spacer"></div>
-      <span class="save-state" id="liveState" title="تتحدث البيانات تلقائيًا"><i></i>تحديث مباشر</span>
-    </header>
+    </div>
+    <label class="picker" id="monthPicker" title="الشهر"><svg class="ic sm"><use href="#i-calendar"/></svg><span class="sr-only">الشهر</span><select id="month"></select></label>
+  </div>
 
+  <div class="main">
     <main class="content" id="content">
       <div id="status" class="notice info hidden" role="status"></div>
       <div id="noClient" class="hidden"></div>
@@ -100,13 +105,35 @@
       <!-- ===== OVERVIEW ===== -->
       <section class="view" id="view-overview" aria-labelledby="ovTitle">
         <div class="page-head">
-          <div class="titles"><h1 id="ovTitle">نظرة عامة</h1><p id="ovSub"></p></div>
-          <div class="actions"><a class="btn" href="#targets"><svg class="ic sm"><use href="#i-target"/></svg>تعديل الهدف</a></div>
+          <div class="titles"><h1 id="ovTitle">أداء الحملات</h1><p id="ovSub"></p></div>
+          <div class="actions"></div>
         </div>
-        <div id="targetBody"></div>
+
+        <section class="card kpi-strip" id="kpiStrip" aria-label="المؤشرات الرئيسية"></section>
+
+        <div class="dash-grid">
+          <section class="card panel span-2" aria-labelledby="trendT">
+            <div class="panel-head"><div><h2 id="trendT">المبيعات والصرف يوميًا</h2><p class="sub" id="trendSub"></p></div><div class="legend" id="trendLegend"></div></div>
+            <div class="chart" id="trendChart"></div>
+          </section>
+          <section class="card panel" aria-labelledby="platT">
+            <div class="panel-head"><div><h2 id="platT">الصرف حسب المنصة</h2><p class="sub" id="platSub"></p></div></div>
+            <div id="platBars"></div>
+          </section>
+
+          <section class="card panel span-2 flush" aria-labelledby="insT">
+            <div class="panel-head"><div><h2 id="insT">أداء المنصات</h2><p class="sub">مقارنة بالفترة السابقة</p></div><a class="btn btn-sm btn-ghost" href="#performance">التفاصيل اليومية ←</a></div>
+            <div class="tbl-plain"><table id="insTbl"></table></div>
+          </section>
+          <section class="card panel" aria-labelledby="goalT">
+            <div class="panel-head"><div><h2 id="goalT">متابعة الهدف</h2><p class="sub" id="goalSub"></p></div><a class="btn btn-sm btn-ghost icon-btn" href="#targets" aria-label="تعديل الهدف" title="تعديل الهدف"><svg class="ic sm"><use href="#i-pencil"/></svg></a></div>
+            <div id="targetBody"></div>
+          </section>
+        </div>
+
         <section class="section" id="required">
           <div class="section-head">
-            <h2>المطلوب لتحقيق الهدف</h2>
+            <div><h2>المطلوب لتحقيق الهدف</h2><p class="sub muted small" id="reqSub"></p></div>
             <label class="picker hidden" id="roasModeWrap"><span class="small muted">احسب على</span><select id="roasMode"><option value="current">ROAS الحالي للشهر</option><option value="target">ROAS المستهدف</option></select></label>
           </div>
           <div id="requiredBody" class="section"></div>
@@ -163,7 +190,7 @@
 
       <!-- ===== TARGETS ===== -->
       <section class="view hidden" id="view-targets" aria-labelledby="tTitle">
-        <div class="page-head"><div class="titles"><h1 id="tTitle">الهدف</h1><p id="tSub"></p></div></div>
+        <div class="page-head"><div class="titles"><h1 id="tTitle">الهدف</h1><p id="tSub"></p></div><div class="actions"></div></div>
         <form class="card pad-lg" id="targetForm" autocomplete="off">
           <div class="card-head"><h2 id="tFormTitle">هدف الشهر</h2><span class="sub" id="tMsg"></span></div>
           <div class="form-grid">

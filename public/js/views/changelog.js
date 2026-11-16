@@ -60,10 +60,11 @@ export function renderEdits() {
   $("newCount").innerHTML = "";
   if (newOnes.length) { $("newCount").append(el("span", { class: "pill new" }, `${newOnes.length} تعديل جديد من زملائك`)); $("markSeen").classList.remove("hidden"); }
   else $("markSeen").classList.add("hidden");
-  const list = state.edits.filter(e => (!fp || e.platform === fp) && (!fw || whoKey(e) === fw) && (!ft || e.type === ft) && (!q || (e.entity || "").toLowerCase().includes(q) || (e.note || "").toLowerCase().includes(q)));
+  const { from, to } = state.range;
+  const list = state.edits.filter(e => (!e.at || (e.at.slice(0, 10) >= from && e.at.slice(0, 10) <= to)) && (!fp || e.platform === fp) && (!fw || whoKey(e) === fw) && (!ft || e.type === ft) && (!q || (e.entity || "").toLowerCase().includes(q) || (e.note || "").toLowerCase().includes(q)));
   if (!list.length) {
     log.append(state.edits.length
-      ? emptyState("search", "لا توجد نتائج", "لا توجد تعديلات تطابق هذه التصفية. جرّب إزالة بعض عوامل التصفية.")
+      ? emptyState("search", "لا توجد نتائج", "لا توجد تعديلات في هذه الفترة أو بهذه التصفية. جرّب فترة أطول أو أزل بعض عوامل التصفية.")
       : emptyState("history", "لا توجد تعديلات بعد", "عند إجراء أي تعديل على الحسابات سجّله هنا، وسيراه زملاؤك فورًا.",
           state.canWrite ? el("button", { class: "btn-primary", type: "button", onclick: () => $("openEdit").click() }, icon("plus", "ic sm"), "سجّل تعديل") : null));
     return;

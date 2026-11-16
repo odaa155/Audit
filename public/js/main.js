@@ -1,44 +1,42 @@
-// App shell: routing, sidebar, client/month context, realtime subscriptions, boot.
-import { $, el, initial, monthLabel, lsGet, lsSet, toast, status, PMAP, emptyState, icon } from "./lib.js";
-import { state, hooks, client, isAdmin, isNewEdit, monthsAvailable, latestDataMonth } from "./store.js";
+// App shell: routing, top tabs, client/date-range context, realtime subscriptions, boot.
+import { $, el, initial, monthLabel, lsGet, lsSet, toast, status, PMAP, emptyState, icon, todayISO } from "./lib.js";
+import { state, hooks, client, isAdmin, isNewEdit, monthsAvailable } from "./store.js";
+import { initRange, mountPicker, drawPickerLabel, setRange, monthsIn, prevRange } from "./range.js";
 import * as overview from "./views/overview.js";
 import * as performance from "./views/performance.js";
-import { todayISO } from "./lib.js";
 import * as changelog from "./views/changelog.js";
 import * as accounts from "./views/accounts.js";
 import * as targets from "./views/targets.js";
 import * as users from "./views/users.js";
 import * as settings from "./views/settings.js";
 
-// title, module, needs a client?, shows month picker?, admin only?
+// filter: "range" = date range picker, "month" = month picker (targets), none = client only
 const VIEWS = {
-  overview:    { title: "نظرة عامة",        mod: overview,    client: true,  month: true },
-  performance: { title: "الأداء اليومي",     mod: performance, client: true,  month: true },
-  changelog:   { title: "سجل التعديلات",     mod: changelog,   client: true,  month: false },
-  targets:     { title: "الهدف",           mod: targets,     client: true,  month: true },
-  accounts:    { title: "الحسابات والعملاء", mod: accounts,    client: false, month: false },
-  users:       { title: "المستخدمون",        mod: users,       client: false, month: false, admin: true, noContext: true },
-  settings:    { title: "ربط المنصات",       mod: settings,    client: false, month: false, admin: true, noContext: true },
+  overview:    { title: "نظرة عامة",        mod: overview,    client: true,  filter: "range" },
+  performance: { title: "الأداء اليومي",     mod: performance, client: true,  filter: "range" },
+  changelog:   { title: "سجل التعديلات",     mod: changelog,   client: true,  filter: "range" },
+  targets:     { title: "الهدف",             mod: targets,     client: true,  filter: "month" },
+  accounts:    { title: "الحسابات والعملاء", mod: accounts,    client: false },
+  users:       { title: "المستخدمون",        mod: users,       client: false, admin: true, noContext: true },
+  settings:    { title: "ربط المنصات",       mod: settings,    client: false, admin: true, noContext: true },
 };
 const LEGACY = { dashboard: "overview" };
 
 // ---------- theme ----------
+const isDark = () => document.documentElement.dataset.theme === "dark" || (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
 function applyThemeIcon() {
-  const dark = document.documentElement.dataset.theme === "dark" || (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
+  const dark = isDark();
   $("themeBtn").querySelector("use").setAttribute("href", dark ? "#i-sun" : "#i-moon");
-  $("themeBtn").querySelector("span").textContent = dark ? "فاتح" : "داكن";
+  $("themeBtn").setAttribute("aria-label", dark ? "التبديل إلى الوضع الفاتح" : "التبديل إلى الوضع الداكن");
 }
-$("themeBtn").addEventListener("click", () => {
-  const dark = document.documentElement.dataset.theme === "dark" || (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
-  const next = dark ? "light" : "dark"; document.documentElement.dataset.theme = next; lsSet("ops.theme", next); applyThemeIcon();
-});
+$("themeBtn").addEventListener("click", () => { const next = isDark() ? "light" : "dark"; document.documentElement.dataset.theme = next; lsSet("ops.theme", next); applyThemeIcon(); renderAll(); });
 applyThemeIcon();
 
-// ---------- mobile sidebar ----------
-const openSide = v => { $("sidebar").classList.toggle("open", v); $("scrim").classList.toggle("show", v); $("menuBtn").setAttribute("aria-expanded", String(v)); };
-$("menuBtn").addEventListener("click", () => openSide(true));
-$("scrim").addEventListener("click", () => openSide(false));
-document.addEventListener("keydown", e => { if (e.key === "Escape") openSide(false); });
+// ---------- account menu ----------
+const openMenu = v => { $("meMenu").classList.toggle("hidden", !v); $("meBtn").setAttribute("aria-expanded", String(v)); };
+$("meBtn").addEventListener("click", e => { e.stopPropagation(); openMenu($("meMenu").classList.contains("hidden")); });
+document.addEventListener("click", () => openMenu(false));
+document.addEventListener("keydown", e => { if (e.key === "Escape") openMenu(false); });
 
 // ---------- routing ----------
 function route() {
@@ -52,16 +50,19 @@ function route() {
   if (!VIEWS[v] || (VIEWS[v].admin && state.me && !isAdmin())) v = "overview";
   state.view = v;
   for (const name of Object.keys(VIEWS)) $("view-" + name).classList.toggle("hidden", name !== v);
-  document.querySelectorAll(".nav-item[data-view]").forEach(a => a.setAttribute("aria-current", a.dataset.view === v ? "page" : "false"));
+  document.querySelectorAll(".tab[data-view]").forEach(a => a.setAttribute("aria-current", a.dataset.view === v ? "page" : "false"));
+  document.querySelector(`.tab[data-view="${v}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
   document.title = `${VIEWS[v].title} · audit`;
-  openSide(false);
+  // filters live at the end of the active page's header (one row, above the content they scope)
+  const slot = $("view-" + v).querySelector(".page-head .actions");
+  if (slot) slot.append($("filters"));
   window.scrollTo({ top: 0 });
   renderAll();
   VIEWS[v].mod.enter?.();
 }
 window.addEventListener("hashchange", route);
 
-// ---------- client & month context ----------
+// ---------- client & date context ----------
 function renderClientSelect() {
   const sel = $("clientSel"); sel.innerHTML = "";
   if (!state.clients.length) { sel.append(el("option", { value: "" }, state.loadedClients ? "لا يوجد عملاء" : "جارٍ التحميل…")); sel.disabled = true; return; }
@@ -73,52 +74,55 @@ $("clientSel").addEventListener("change", e => selectClient(e.target.value));
 function selectClient(id) {
   if (id === state.cid) return;
   state.cid = id; lsSet("ops.client", id || "");
-  state.month = null; state.monthTouched = false; state.daily = []; state.store = []; state.edits = []; state.targets = {}; state.found = {};
+  state.daily = []; state.store = []; state.edits = []; state.targets = {}; state.found = {};
   subscribeClient(); renderAll();
 }
 hooks.selectClient = selectClient;
 
 function renderMonthSelect() {
   const sel = $("month"), months = monthsAvailable();
-  if (!state.month) state.month = latestDataMonth();
   sel.innerHTML = ""; for (const m of months) sel.append(el("option", { value: m }, monthLabel(m)));
   sel.value = state.month;
 }
-$("month").addEventListener("change", e => { state.month = e.target.value; state.monthTouched = true; renderAll(); });
+$("month").addEventListener("change", e => { setRange("m:" + e.target.value); renderAll(); });
 
 // ---------- render ----------
 function renderAll() {
   const V = VIEWS[state.view];
-  renderClientSelect(); renderMonthSelect();
+  renderClientSelect(); renderMonthSelect(); drawPickerLabel();
   $("clientPicker").classList.toggle("hidden", !!V.noContext);
-  $("monthPicker").classList.toggle("hidden", !V.month);
+  $("rangePicker").classList.toggle("hidden", V.filter !== "range");
+  $("monthPicker").classList.toggle("hidden", V.filter !== "month");
   const hasClient = !!client();
   const blocked = V.client && !hasClient;
   $("noClient").classList.toggle("hidden", !(blocked && state.loadedClients));
   $("noClient").innerHTML = "";
   if (blocked && state.loadedClients) $("noClient").append(emptyState("briefcase", "لا يوجد عملاء بعد", isAdmin() ? "ابدأ بإضافة عميل ثم اربط حساباته الإعلانية." : "لم يعيّن لك المدير أي عملاء بعد.", isAdmin() ? el("a", { class: "btn btn-primary", href: "#accounts" }, icon("plus", "ic sm"), "إضافة عميل") : null));
-  $("view-" + state.view).classList.toggle("hidden", blocked);
+  // keep the page header (and its filters) visible even without a client
+  for (const n of $("view-" + state.view).children) if (!n.classList.contains("page-head")) n.classList.toggle("hidden-blocked", blocked);
   if (!blocked && (state.db || V.admin)) V.mod.render();
   maybeAutoSync();
-  // nav badge: unseen edits from teammates
   const n = state.edits.filter(isNewEdit).length;
   $("navBadge").textContent = n > 99 ? "99+" : String(n); $("navBadge").classList.toggle("hidden", !n);
 }
 hooks.renderAll = renderAll;
 
-// جلب تلقائي عند فتح عميل إذا كانت أرقام الشهر قديمة (أكثر من ساعة) أو غير موجودة
+// جلب تلقائي لأشهر الفترة المختارة (والفترة السابقة للمقارنة) إذا كانت أرقامها قديمة أو غير موجودة
 const autoSynced = new Set();
 function maybeAutoSync() {
-  const c = client(); if (!c || !state.db || !state.canWrite || !state.mcp || !state.loadedClients || state.syncing) return;
+  const c = client(); if (!c || !state.db || !state.canWrite || !state.mcp || !state.loadedClients || state.syncing || !state.range) return;
   if (!(c.accounts || []).some(a => a.via === "api")) return;
-  const ym = state.month; if (!ym || ym > todayISO().slice(0, 7)) return;
-  const key = c.id + "|" + ym; if (autoSynced.has(key)) return;
-  const ls = c.lastSync, fresh = ls?.at && ls.month === ym && Date.now() - new Date(ls.at).getTime() < 3600e3;
-  const isCurrent = ym === todayISO().slice(0, 7);
-  const hasRows = state.daily.some(r => r.date?.startsWith(ym) && r.source === "api");
-  if (fresh || (!isCurrent && hasRows)) return;
-  autoSynced.add(key);
-  setTimeout(() => performance.runSync({ silent: true }), 300);
+  const cm = todayISO().slice(0, 7);
+  const months = [...new Set([...monthsIn(prevRange().from, state.range.to), state.month])].filter(m => m <= cm);
+  const need = months.filter(ym => {
+    if (autoSynced.has(c.id + "|" + ym)) return false;
+    const ls = c.lastSync, fresh = ls?.at && ls.month === ym && Date.now() - new Date(ls.at).getTime() < 3600e3;
+    const hasRows = state.daily.some(r => r.date?.startsWith(ym) && r.source === "api");
+    return !(fresh || (ym !== cm && hasRows));
+  });
+  if (!need.length) return;
+  need.forEach(ym => autoSynced.add(c.id + "|" + ym));
+  setTimeout(() => performance.runSync({ silent: true, months: need }), 300);
 }
 
 function applyWriteState() {
@@ -132,15 +136,15 @@ function subscribeClient() {
   for (const u of state.unsubs) try { u(); } catch (_) {} state.unsubs = [];
   const cid = state.cid; if (!state.db || !cid) return;
   const onErr = () => status("حدثت مشكلة في تحميل البيانات. يُرجى تحديث الصفحة.", "bad");
-  let pinned = false;
   const q = col => state.db.collection(col).where("clientId", "==", cid);
-  state.unsubs.push(q("daily").onSnapshot(s => { if (state.cid !== cid) return; state.daily = s.docs.map(d => ({ id: d.id, ...d.data() })); if (!pinned && state.daily.length && !state.monthTouched) { state.month = latestDataMonth(); pinned = true; } renderAll(); }, onErr));
+  state.unsubs.push(q("daily").onSnapshot(s => { if (state.cid !== cid) return; state.daily = s.docs.map(d => ({ id: d.id, ...d.data() })); renderAll(); }, onErr));
   state.unsubs.push(q("store").onSnapshot(s => { if (state.cid !== cid) return; state.store = s.docs.map(d => ({ id: d.id, ...d.data() })); renderAll(); }, onErr));
   state.unsubs.push(q("targets").onSnapshot(s => { if (state.cid !== cid) return; state.targets = Object.fromEntries(s.docs.map(d => { const t = d.data(); return [t.month, t]; })); renderAll(); }, onErr));
   state.unsubs.push(q("edits").orderBy("at", "desc").limit(1000).onSnapshot(s => { if (state.cid !== cid) return; state.edits = s.docs.map(d => ({ id: d.id, ...d.data() })); renderAll(); changelog.resolveNames(renderAll); }, onErr));
 }
 
 // ---------- boot ----------
+initRange(); mountPicker();
 for (const V of Object.values(VIEWS)) V.mod.init();
 route();
 (async function boot() {

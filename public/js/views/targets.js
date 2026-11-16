@@ -1,9 +1,10 @@
 // Targets: set the monthly sales target / budget / ROAS and review every month's progress.
 import { $, el, fmt0, fmt2, pct, div, monthLabel, todayISO, toast, confirmDialog } from "../lib.js";
+import { setRange } from "../range.js";
 import { state, hooks, client, cur, nameOf, guard, safe, monthData, basisNumbers } from "../store.js";
 
 export function init() {
-  $("tMonth").addEventListener("change", () => { if ($("tMonth").value) { state.month = $("tMonth").value; state.monthTouched = true; hooks.renderAll(); } });
+  $("tMonth").addEventListener("change", () => { if ($("tMonth").value) { setRange("m:" + $("tMonth").value); hooks.renderAll(); } });
   $("targetForm").addEventListener("submit", save);
   $("delTarget").addEventListener("click", del);
 }
@@ -28,7 +29,7 @@ export function render() {
       el("td", {}, el("div", { style: "display:flex;gap:10px;align-items:center" }, bar, el("span", { class: "num small" }, pct(p, 1)))),
       el("td", { class: "n" }, fmt0(t.budget)), el("td", { class: "n" }, fmt0(md.tot.spend)), el("td", { class: "n" }, t.roas ? fmt2(t.roas) : "-"),
       el("td", {}, el("span", { class: "pill plain" }, t.basis === "platform" ? "المنصات" : "المتجر")));
-    const pick = () => { state.month = m; state.monthTouched = true; hooks.renderAll(); }; tr.addEventListener("click", pick); tr.addEventListener("keydown", e => { if (e.key === "Enter") pick(); });
+    const pick = () => { setRange("m:" + m); hooks.renderAll(); }; tr.addEventListener("click", pick); tr.addEventListener("keydown", e => { if (e.key === "Enter") pick(); });
     tb.append(tr);
   }
   if (!months.length) tb.append(el("tr", {}, el("td", { colspan: 8, class: "muted-cell" }, c ? "لا توجد أهداف مسجلة لهذا العميل بعد." : "اختر عميلًا أولًا.")));
@@ -52,7 +53,7 @@ async function save(ev) {
   const sales = +$("tSales").value; if (!sales) { toast("أدخل رقم هدف المبيعات", "bad"); $("tSales").focus(); return; }
   const data = { clientId: c.id, month: ym, sales, budget: +$("tBudget").value || null, roas: +$("tRoas").value || null, orders: +$("tOrders").value || null, basis: $("tBasis").value, updatedBy: state.uid, updatedAt: new Date().toISOString() };
   document.activeElement?.blur();
-  if (await safe(state.db.doc(`targets/${c.id}_${ym}`).set(data), "تم حفظ الهدف")) state.month = ym;
+  if (await safe(state.db.doc(`targets/${c.id}_${ym}`).set(data), "تم حفظ الهدف")) { setRange("m:" + ym); hooks.renderAll(); }
 }
 async function del() {
   const c = client(); const ym = $("tMonth").value; if (!c || !ym || !guard()) return;

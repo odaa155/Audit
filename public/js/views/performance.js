@@ -1,6 +1,7 @@
 // Performance: month totals per platform, daily breakdown, manual entry / paste, sync from platform APIs.
 import { $, el, icon, api, fmt0, fmt2, pct, div, pad, daysIn, addDays, todayISO, dayLabel, monthLabel, timeAgo, platChip, PLATFORMS, PMAP, ALIASES, MONTHS_EN, fillPlatSelect, openDialog, closeDialog, toast, emptyState } from "../lib.js";
-import { state, hooks, client, cur, nameOf, guard, safe, monthData, mcpErrorText } from "../store.js";
+import { state, hooks, client, cur, nameOf, guard, safe, rangeData, mcpErrorText } from "../store.js";
+import { monthsIn, rangeDates, setRange } from "../range.js";
 
 const COLS = [["Spent", "n"], ["Sales", "n"], ["Orders", "n"], ["ROAS", "n"], ["CPA %", "n"], ["AOV", "n"], ["الزيارات", "n"], ["التحويل", "n"]];
 const metricCells = (spend, sales, orders, visits, hasVisits = true) => [fmt0(spend), fmt0(sales), fmt0(orders), sales && spend ? fmt2(sales / spend) : "-", sales ? pct(div(spend, sales)) : "-", orders ? fmt2(div(sales, orders)) : "-", hasVisits && visits ? fmt0(visits) : "-", hasVisits && visits ? pct(div(orders, visits)) : "-"];
@@ -29,8 +30,8 @@ function setEntryTab(tab) {
 const hasApiAcc = c => (c?.accounts || []).some(a => a.via === "api");
 
 export function render() {
-  const c = client(), md = monthData(state.month), C = cur();
-  $("perfSub").textContent = c ? `${c.name} · ${monthLabel(state.month)} · المبالغ بـ ${C}` : "";
+  const c = client(), md = rangeData(state.range.from, state.range.to), C = cur();
+  $("perfSub").textContent = c ? `${c.name} · ${rangeDates()} · المبالغ بـ ${C}` : "";
   const ls = c?.lastSync;
   $("lastSync").textContent = ls?.at ? `آخر جلب ${timeAgo(ls.at)}${ls.by === "system" ? " (تلقائي)" : " بواسطة " + nameOf(ls.by)}${ls.failed ? ` · تعذّر جلب ${ls.failed} حساب` : ""}` : (hasApiAcc(c) ? "لم يتم جلب الأرقام بعد" : "");
   drawSyncResult();
@@ -47,7 +48,7 @@ export function render() {
   if (plats.length) {
     mtb.append(el("tr", { class: "total" }, el("td", {}, "Total platform"), ...metricCells(md.tot.spend, md.tot.sales, md.tot.orders, md.tot.visits).map(x => el("td", { class: "n" }, x))));
     if (md.storeTot.days) mtb.append(el("tr", { class: "store" }, el("td", {}, `Total Store (${md.storeTot.days} يوم)`), ...metricCells(md.spendOnStoreDays, md.storeTot.sales, md.storeTot.orders, 0, false).map(x => el("td", { class: "n" }, x))));
-  } else mtb.append(el("tr", {}, el("td", { colspan: 9, class: "muted-cell" }, `لا توجد أرقام لشهر ${monthLabel(state.month)} بعد. اجلبها من المنصات أو أدخلها يدويًا.`)));
+  } else mtb.append(el("tr", {}, el("td", { colspan: 9, class: "muted-cell" }, `لا توجد أرقام في الفترة ${rangeDates()} بعد. اجلبها من المنصات أو أدخلها يدويًا.`)));
   mt.append(mtb);
 
   $("monthTotal").innerHTML = "";
@@ -101,7 +102,7 @@ async function saveDaily() {
   const c = client(); if (!c || !guard()) return;
   const date = $("dDate").value, platform = $("dPlat").value; if (!date) { toast("اختر التاريخ", "bad"); return; }
   const data = { clientId: c.id, date, platform, spend: +$("dSpend").value || 0, sales: +$("dSales").value || 0, orders: +$("dOrders").value || 0, visits: $("dVisits").value === "" ? null : +$("dVisits").value, source: "manual", updatedBy: state.uid, updatedAt: new Date().toISOString() };
-  if (await safe(state.db.doc(dailyPath(c.id, date, platform)).set(data), "تم الحفظ")) { state.month = date.slice(0, 7); closeDialog("entryDlg"); }
+  if (await safe(state.db.doc(dailyPath(c.id, date, platform)).set(data), "تم الحفظ")) closeDialog("entryDlg");
 }
 async function delDaily() {
   const c = client(); if (!c || !guard()) return; const date = $("dDate").value; if (!date) return;
@@ -109,7 +110,7 @@ async function delDaily() {
 }
 async function saveStore() {
   const c = client(); if (!c || !guard()) return; const date = $("sDate").value; if (!date) { toast("اختر التاريخ", "bad"); return; }
-  if (await safe(state.db.doc(`store/${c.id}_${date}`).set({ clientId: c.id, date, sales: +$("sSales").value || 0, orders: +$("sOrders").value || 0, updatedBy: state.uid, updatedAt: new Date().toISOString() }), "تم الحفظ")) { state.month = date.slice(0, 7); closeDialog("entryDlg"); }
+  if (await safe(state.db.doc(`store/${c.id}_${date}`).set({ clientId: c.id, date, sales: +$("sSales").value || 0, orders: +$("sOrders").value || 0, updatedBy: state.uid, updatedAt: new Date().toISOString() }), "تم الحفظ")) closeDialog("entryDlg");
 }
 
 function parseDate(s) {
@@ -135,26 +136,32 @@ async function doPaste() {
   }
   btn.disabled = false; btn.classList.remove("loading");
   $("pasteMsg").textContent = `تم تسجيل ${ok} سطر` + (bad ? ` · ${bad} سطر لم تتم قراءته` : "");
-  if (ok) { $("pasteBox").value = ""; toast(`تم تسجيل ${ok} سطر`, "good"); if (lastDate) { state.month = lastDate.slice(0, 7); hooks.renderAll(); } if (!bad) closeDialog("pasteDlg"); }
+  if (ok) { $("pasteBox").value = ""; toast(`تم تسجيل ${ok} سطر`, "good"); if (lastDate && (lastDate < state.range.from || lastDate > state.range.to)) { setRange("m:" + lastDate.slice(0, 7)); hooks.renderAll(); } if (!bad) closeDialog("pasteDlg"); }
 }
 
 // ---------- sync from platforms (runs on the server) ----------
 const ERR_TEXT = (r) => mcpErrorText({ code: r.code, message: r.message }, PMAP[r.platform]?.label || r.platform);
-export async function runSync({ silent = false } = {}) {
+export async function runSync({ silent = false, months } = {}) {
   const c = client(); if (!c) return null;
-  const ym = state.month;
-  if (`${ym}-01` > todayISO()) { if (!silent) toast("هذا الشهر لم يبدأ بعد", "bad"); return null; }
+  const cm = todayISO().slice(0, 7);
+  months = (months || monthsIn(state.range.from, state.range.to)).filter(m => m <= cm);
+  if (!months.length) { if (!silent) toast("هذه الفترة لم تبدأ بعد", "bad"); return null; }
   const btn = $("syncBtn"); btn.disabled = true; btn.classList.add("loading");
   setSyncing(true);
-  if (!silent) { $("syncBox").classList.remove("hidden"); $("syncLog").innerHTML = ""; $("syncTitle").textContent = `جارٍ جلب أرقام ${monthLabel(ym)}…`; }
+  const label = months.map(monthLabel).join(" و");
+  if (!silent) { $("syncBox").classList.remove("hidden"); $("syncLog").innerHTML = ""; $("syncTitle").textContent = `جارٍ جلب أرقام ${label}…`; }
   let out = null;
-  try { out = await api("/api/sync", { method: "POST", body: JSON.stringify({ clientId: c.id, month: ym }) }); }
-  catch (e) { if (!silent) toast(e.message, "bad"); }
+  for (const ym of months) {
+    try {
+      const o = await api("/api/sync", { method: "POST", body: JSON.stringify({ clientId: c.id, month: ym }) });
+      if (!out) out = { results: o.results.map(r => ({ ...r })), writes: o.writes };
+      else { out.writes += o.writes; o.results.forEach((r, k) => { const t = out.results[k]; if (!t) return; if (r.ok && t.ok) t.spend += r.spend; else if (!r.ok) Object.assign(t, r); }); }
+    } catch (e) { if (!silent) toast(e.message, "bad"); }
+  }
   btn.classList.remove("loading"); setSyncing(false);
   if (out) {
-    state.syncResult = { cid: c.id, month: ym, ...out };
-    const failed = out.results.filter(r => !r.ok);
-    if (silent && failed.length) { $("syncBox").classList.remove("hidden"); }
+    state.syncResult = { cid: c.id, label, ...out };
+    if (silent && out.results.some(r => !r.ok)) $("syncBox").classList.remove("hidden");
     drawSyncResult();
     if (!silent) toast(`تم تحديث ${out.writes} سطر`, "good");
   }
@@ -163,9 +170,9 @@ export async function runSync({ silent = false } = {}) {
 }
 function setSyncing(on) { state.syncing = on; const s = $("liveState"); if (s) { s.lastChild.textContent = on ? "جارٍ تحديث الأرقام…" : "تحديث مباشر"; s.classList.toggle("busy", on); } }
 function drawSyncResult() {
-  const r = state.syncResult; if (!r || r.cid !== state.cid || r.month !== state.month) return;
+  const r = state.syncResult; if (!r || r.cid !== state.cid) return;
   const logBox = $("syncLog"); logBox.innerHTML = "";
-  $("syncTitle").textContent = r.results.length ? `آخر جلب لأرقام ${monthLabel(r.month)}: تم تحديث ${r.writes} سطر` : "لا توجد حسابات مربوطة بالمنصات لهذا العميل";
+  $("syncTitle").textContent = r.results.length ? `آخر جلب لأرقام ${r.label}: تم تحديث ${r.writes} سطر` : "لا توجد حسابات مربوطة بالمنصات لهذا العميل";
   for (const x of r.results) logBox.append(el("div", {}, platChip(x.platform), el("span", {}, x.name || x.accountId),
     x.ok ? el("span", { class: "pill good" }, icon("check", "ic sm"), `تم · الصرف ${fmt0(x.spend)} ${cur()}`) : el("span", { class: "pill bad", style: "white-space:normal" }, ERR_TEXT(x))));
   if (r.results.some(x => x.platform === "snapchat")) logBox.append(el("p", { class: "muted small" }, "تُحسب أرقام Snapchat على 28 يومًا للسحب ويوم واحد للمشاهدة، وأرقام Meta حسب إعداد الإسناد في الحساب."));

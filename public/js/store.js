@@ -4,7 +4,7 @@ import { div, daysIn, todayISO, toast } from "./lib.js";
 export const state = {
   db: null, user: null, mcp: null, uid: null, me: null, canWrite: false,
   clients: [], cid: null, daily: [], store: [], edits: [], targets: {}, lastSeen: null,
-  month: null, monthTouched: false, names: {}, view: "overview", unsubs: [], loadedClients: false, found: {}
+  month: null, monthTouched: false, range: null, syncing: false, names: {}, view: "overview", unsubs: [], loadedClients: false, found: {}
 };
 // Filled by main.js to avoid circular imports.
 export const hooks = { renderAll() {}, selectClient() {} };
@@ -34,9 +34,12 @@ export function monthsAvailable() {
   return [...set].sort().reverse();
 }
 export function latestDataMonth() { const ds = state.daily.map(r => r.date).filter(Boolean).sort(); return ds.length ? ds[ds.length - 1].slice(0, 7) : todayISO().slice(0, 7); }
-export function monthData(ym) {
-  const rows = state.daily.filter(r => r.date && r.date.startsWith(ym));
-  const store = state.store.filter(r => r.date && r.date.startsWith(ym));
+export const monthData = ym => rangeData(ym + "-01", ym + "-31");
+// Totals for any date range (inclusive). byDay holds per-day platform totals for charts.
+export function rangeData(from, to) {
+  const inR = r => r.date && r.date >= from && r.date <= to;
+  const rows = state.daily.filter(inR);
+  const store = state.store.filter(inR);
   const dates = [...new Set([...rows.map(r => r.date), ...store.map(r => r.date)])].sort();
   const byPlat = {};
   for (const r of rows) { const b = byPlat[r.platform] || (byPlat[r.platform] = { spend: 0, sales: 0, orders: 0, visits: 0 }); b.spend += +r.spend || 0; b.sales += +r.sales || 0; b.orders += +r.orders || 0; b.visits += +r.visits || 0; }
@@ -46,7 +49,9 @@ export function monthData(ym) {
   for (const s of store) { storeTot.sales += +s.sales || 0; storeTot.orders += +s.orders || 0; }
   const storeDays = new Set(store.map(s => s.date));
   const spendOnStoreDays = rows.filter(r => storeDays.has(r.date)).reduce((a, r) => a + (+r.spend || 0), 0);
-  return { rows, store, dates, byPlat, tot, storeTot, spendOnStoreDays, lastDate: dates[dates.length - 1] || null };
+  const byDay = {};
+  for (const r of rows) { const d = byDay[r.date] || (byDay[r.date] = { spend: 0, sales: 0, orders: 0, plat: {} }); d.spend += +r.spend || 0; d.sales += +r.sales || 0; d.orders += +r.orders || 0; const pp = d.plat[r.platform] || (d.plat[r.platform] = { spend: 0, sales: 0 }); pp.spend += +r.spend || 0; pp.sales += +r.sales || 0; }
+  return { rows, store, dates, byPlat, byDay, tot, storeTot, spendOnStoreDays, lastDate: dates[dates.length - 1] || null };
 }
 export function basisNumbers(md, t) {
   const basis = t?.basis || "platform";
