@@ -5,6 +5,7 @@ import { state, client, cur, monthData, rangeData, basisNumbers, elapsedDays, is
 import { prevRange, rangeDates, daysBetween } from "../range.js";
 import { lineChart, sparkBars, compact } from "../charts.js";
 import { editCard } from "./changelog.js";
+import { taskCard } from "./tasks.js";
 
 const hiddenSeries = new Set();
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -18,7 +19,14 @@ export function render() {
   $("ovSub").textContent = c ? `${c.name} · ${rangeDates()} · المبالغ بـ ${cur()}` : "";
   const md = rangeData(r.from, r.to), p = prevRange(), pd = rangeData(p.from, p.to);
   renderKpis(md, pd, p); renderTrend(md); renderPlatBars(md); renderInsights(md, pd);
-  renderTarget(); renderRequired(); renderRecent();
+  renderTarget(); renderRequired(); renderRecent(); renderTasks();
+}
+
+function renderTasks() {
+  const box = $("recentTasks"); box.innerHTML = "";
+  const open = state.tasks.filter(t => t.status !== "done").sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999")).slice(0, 4);
+  if (!open.length) { box.append(emptyState("check", null, "لا توجد مهام مفتوحة.", el("a", { class: "btn btn-sm", href: "#tasks" }, "أضف مهمة"))); return; }
+  for (const t of open) box.append(taskCard(t, true));
 }
 
 // ---------- KPI strip ----------

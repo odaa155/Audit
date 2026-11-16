@@ -3,7 +3,7 @@ import { div, daysIn, todayISO, toast } from "./lib.js";
 
 export const state = {
   db: null, user: null, mcp: null, uid: null, me: null, canWrite: false,
-  clients: [], cid: null, daily: [], store: [], edits: [], targets: {}, lastSeen: null,
+  clients: [], cid: null, daily: [], store: [], edits: [], tasks: [], people: {}, targets: {}, lastSeen: null,
   month: null, monthTouched: false, range: null, syncing: false, names: {}, view: "overview", unsubs: [], loadedClients: false, found: {}
 };
 // Filled by main.js to avoid circular imports.

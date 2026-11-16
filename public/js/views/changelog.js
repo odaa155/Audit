@@ -1,5 +1,6 @@
 // Change log: what each media buyer changed on the ad accounts, so teammates see it instantly.
-import { $, el, icon, dayLabel, platChip, nowLocalInput, emptyState, fillPlatSelect, openDialog, closeDialog, confirmDialog } from "../lib.js";
+import { $, el, icon, dayLabel, platChip, nowLocalInput, emptyState, fillPlatSelect, openDialog, closeDialog, confirmDialog, addDays, fmt0, fmt2, div, PMAP } from "../lib.js";
+import { openTask } from "./tasks.js";
 import { state, client, nameOf, guard, safe, isNewEdit } from "../store.js";
 const whoKey = e => e.authorId || (e.authorName ? "ext:" + e.authorName : "");
 const whoName = e => e.authorId ? nameOf(e.authorId) : (e.authorName || "المنصة");
@@ -45,7 +46,52 @@ export function editCard(e, compact = false) {
   card.append(el("div", { class: "entity" }, e.entity || ""));
   card.append(el("div", { class: "change" }, el("span", { class: "before" }, e.before || "-"), el("span", { class: "arrow" }, "←"), el("span", { class: "after" }, e.after || "-")));
   if (e.note && !compact) card.append(el("div", { class: "why" }, icon("message", "ic sm"), e.note));
+  if (!compact) {
+    const imp = impactRow(e); if (imp) card.append(imp);
+    if (state.canWrite) {
+      const linked = state.tasks.filter(t => t.editId === e.id);
+      who.prepend(linked.length
+        ? el("a", { class: "pill plain", href: "#tasks", title: "مهام مرتبطة بهذا التعديل" }, icon("check", "ic sm"), `${linked.length} مهمة`)
+        : el("button", { class: "btn-ghost btn-sm", type: "button", title: "إنشاء مهمة متابعة لهذا التعديل", onclick: () => openTask(null, { editId: e.id, title: `متابعة: ${e.type || "تعديل"} على ${e.entity || ""}`.slice(0, 200), platform: e.platform, due: addDays((e.at || "").slice(0, 10) || new Date().toISOString().slice(0, 10), 3) }) }, icon("plus", "ic sm"), "مهمة"));
+    }
+  }
   return card;
+}
+
+// ---------- edit impact: 3 days before vs 3 days after, at platform level for this client ----------
+const WIN = 3;
+function windowStats(platform, from, to) {
+  let spend = 0, sales = 0, orders = 0, days = 0;
+  for (const r of state.daily) if (r.platform === platform && r.date >= from && r.date <= to) { spend += +r.spend || 0; sales += +r.sales || 0; orders += +r.orders || 0; days++; }
+  return { spend, sales, orders, days, roas: div(sales, spend), cpa: div(spend, orders) };
+}
+export function editImpact(e) {
+  const d = (e.at || "").slice(0, 10); if (!d || !e.platform) return null;
+  const lastDay = state.daily.filter(r => r.platform === e.platform).reduce((m, r) => r.date > m ? r.date : m, "");
+  const b = windowStats(e.platform, addDays(d, -WIN), addDays(d, -1));
+  const a = windowStats(e.platform, addDays(d, 1), addDays(d, WIN));
+  let pending = 0; for (let k = 1; k <= WIN; k++) if (!lastDay || addDays(d, k) > lastDay) pending++;
+  if (!b.days) return { state: "nodata" };
+  if (pending > 0) return { state: "pending", pending, b };
+  const rCh = b.roas && a.roas != null ? (a.roas - b.roas) / b.roas : null;
+  const verdict = rCh == null ? "flat" : rCh >= 0.05 ? "up" : rCh <= -0.05 ? "down" : "flat";
+  return { state: "done", b, a, rCh, verdict };
+}
+const pctTxt = v => (v >= 0 ? "+" : "−") + Math.abs(v * 100).toFixed(0) + "%";
+function impactRow(e) {
+  const r = editImpact(e); if (!r || r.state === "nodata") return null;
+  const lbl = (PMAP[e.platform]?.label || e.platform).replace(" / Instagram", "");
+  const box = el("div", { class: "impact" }, el("span", { class: "impact-t" }, icon("trending", "ic sm"), `الأثر على ${lbl}`));
+  if (r.state === "pending") { box.append(el("span", { class: "muted" }, `يكتمل التقييم بعد ${r.pending} ${r.pending === 1 ? "يوم" : "أيام"} من البيانات`)); return box; }
+  const V = { up: ["good", "تحسّن بعد التعديل"], down: ["bad", "تراجع بعد التعديل"], flat: ["plain", "بدون تغيير واضح"] }[r.verdict];
+  const m = (name, bv, av, fmt, goodUp) => {
+    const ch = bv ? (av - bv) / bv : null, good = goodUp == null || ch == null || !isFinite(ch) || Math.abs(ch) < 0.05 ? "" : ((ch > 0) === goodUp ? " up" : " down");
+    return el("span", { class: "imp-m" + good }, el("span", { class: "muted" }, name + " "), el("b", { class: "num" }, fmt(bv)), " ← ", el("b", { class: "num" }, fmt(av)), ch != null && isFinite(ch) ? el("span", { class: "imp-ch num" }, ` (${pctTxt(ch)})`) : null);
+  };
+  box.append(m("ROAS", r.b.roas, r.a.roas, v => v == null ? "-" : fmt2(v), true), m("CPA", r.b.cpa, r.a.cpa, v => v == null ? "-" : fmt0(v), false), m("الصرف/يوم", r.b.spend / r.b.days, r.a.spend / Math.max(r.a.days, 1), fmt0, null),
+    el("span", { class: "pill " + V[0] }, V[1]));
+  box.title = `مقارنة ${WIN} أيام قبل يوم التعديل بـ ${WIN} أيام بعده، على مستوى المنصة لهذا العميل (وليس الحملة فقط).`;
+  return box;
 }
 
 export function renderEdits() {

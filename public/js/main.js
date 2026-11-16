@@ -5,6 +5,7 @@ import { initRange, mountPicker, drawPickerLabel, setRange, monthsIn, prevRange 
 import * as overview from "./views/overview.js";
 import * as performance from "./views/performance.js";
 import * as changelog from "./views/changelog.js";
+import * as tasks from "./views/tasks.js";
 import * as accounts from "./views/accounts.js";
 import * as targets from "./views/targets.js";
 import * as users from "./views/users.js";
@@ -15,7 +16,8 @@ const VIEWS = {
   overview:    { title: "نظرة عامة",        mod: overview,    client: true,  filter: "range" },
   performance: { title: "الأداء اليومي",     mod: performance, client: true,  filter: "range" },
   changelog:   { title: "سجل التعديلات",     mod: changelog,   client: true,  filter: "range" },
-  targets:     { title: "الهدف",             mod: targets,     client: true,  filter: "month" },
+  tasks:       { title: "المهام",            mod: tasks,       client: true },
+  targets:     { title: "الهدف والميزانية",             mod: targets,     client: true,  filter: "month" },
   accounts:    { title: "الحسابات والعملاء", mod: accounts,    client: false },
   users:       { title: "المستخدمون",        mod: users,       client: false, admin: true, noContext: true },
   settings:    { title: "ربط المنصات",       mod: settings,    client: false, admin: true, noContext: true },
@@ -74,7 +76,7 @@ $("clientSel").addEventListener("change", e => selectClient(e.target.value));
 function selectClient(id) {
   if (id === state.cid) return;
   state.cid = id; lsSet("ops.client", id || "");
-  state.daily = []; state.store = []; state.edits = []; state.targets = {}; state.found = {};
+  state.daily = []; state.store = []; state.edits = []; state.tasks = []; state.targets = {}; state.found = {};
   subscribeClient(); renderAll();
 }
 hooks.selectClient = selectClient;
@@ -104,6 +106,8 @@ function renderAll() {
   maybeAutoSync();
   const n = state.edits.filter(isNewEdit).length;
   $("navBadge").textContent = n > 99 ? "99+" : String(n); $("navBadge").classList.toggle("hidden", !n);
+  const tn = tasks.myDueCount(); $("taskBadge").textContent = String(tn); $("taskBadge").classList.toggle("hidden", !tn);
+  $("taskBadge").title = tn ? `${tn} مهمة مستحقة اليوم أو متأخرة عليك` : "";
 }
 hooks.renderAll = renderAll;
 
@@ -127,7 +131,7 @@ function maybeAutoSync() {
 
 function applyWriteState() {
   const dis = !state.canWrite;
-  ["openEdit", "saveTarget", "openEntry", "openPaste", "saveDaily", "delDaily", "saveStore", "doPaste", "addClient", "saveClient", "delClient", "addManualAcc", "openManual", "openAddClient"].forEach(id => { const b = $(id); if (b) b.disabled = dis; });
+  ["openEdit", "openTask", "saveTarget", "openEntry", "openPaste", "saveDaily", "delDaily", "saveStore", "doPaste", "addClient", "saveClient", "delClient", "addManualAcc", "openManual", "openAddClient"].forEach(id => { const b = $(id); if (b) b.disabled = dis; });
   if (dis && state.db) status("لديك صلاحية عرض فقط. اطلب من المدير صلاحية التعديل لتتمكن من التسجيل والتعديل.", "warn");
 }
 
@@ -140,6 +144,7 @@ function subscribeClient() {
   state.unsubs.push(q("daily").onSnapshot(s => { if (state.cid !== cid) return; state.daily = s.docs.map(d => ({ id: d.id, ...d.data() })); renderAll(); }, onErr));
   state.unsubs.push(q("store").onSnapshot(s => { if (state.cid !== cid) return; state.store = s.docs.map(d => ({ id: d.id, ...d.data() })); renderAll(); }, onErr));
   state.unsubs.push(q("targets").onSnapshot(s => { if (state.cid !== cid) return; state.targets = Object.fromEntries(s.docs.map(d => { const t = d.data(); return [t.month, t]; })); renderAll(); }, onErr));
+  state.unsubs.push(q("tasks").onSnapshot(s => { if (state.cid !== cid) return; state.tasks = s.docs.map(d => ({ id: d.id, ...d.data() })); renderAll(); }, onErr));
   state.unsubs.push(q("edits").orderBy("at", "desc").limit(1000).onSnapshot(s => { if (state.cid !== cid) return; state.edits = s.docs.map(d => ({ id: d.id, ...d.data() })); renderAll(); changelog.resolveNames(renderAll); }, onErr));
 }
 
@@ -159,6 +164,7 @@ route();
     document.querySelectorAll(".admin-only").forEach(x => x.classList.toggle("hidden", !isAdmin()));
     if (VIEWS[state.view].admin && !isAdmin()) { location.hash = "#overview"; }
   } catch (_) {}
+  try { state.people = await user.profiles() || {}; } catch (_) {}
   let cw = null; try { cw = await user.can("data.write"); } catch (_) {}
   state.canWrite = cw !== false && !!state.uid;
   applyWriteState();

@@ -478,3 +478,23 @@ dialog.sm{max-width:min(440px,calc(100vw - 24px))}
 
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 @media (prefers-reduced-motion:no-preference){.bar .fill{transition:width .6s ease}}
+
+/* ---------- tasks ---------- */
+.task{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px 16px;box-shadow:var(--shadow-sm);cursor:pointer;transition:border-color .15s}
+.task:hover{border-color:var(--line-strong)}
+.task:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.task>input{margin-top:3px}
+.task-body{display:grid;gap:6px;min-width:0}
+.task-title{font-weight:600;overflow-wrap:anywhere}
+.task.done .task-title{text-decoration:line-through;color:var(--muted)}
+.task-note{white-space:pre-wrap;overflow-wrap:anywhere}
+.task-meta{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.task.compact{padding:10px 14px}
+.who-chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.avatar.xs{width:22px;height:22px;font-size:11px}
+/* edit impact */
+.impact{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:12.5px;padding:8px 10px;border-radius:9px;background:var(--surface-2);border:1px solid var(--line)}
+.impact-t{display:inline-flex;align-items:center;gap:5px;font-weight:600}
+.imp-m b{font-weight:600}
+.imp-m.up .imp-ch{color:var(--good)} .imp-m.down .imp-ch{color:var(--bad)}
+.dash-grid .section{min-width:0}

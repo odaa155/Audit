@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v INTEGER);
 INSERT OR IGNORE INTO meta VALUES ('version', 0);
 CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT);
 CREATE TABLE IF NOT EXISTS connections (platform TEXT PRIMARY KEY, data TEXT NOT NULL, by TEXT, at TEXT);
+CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, user TEXT, action TEXT NOT NULL, client TEXT, detail TEXT, ip TEXT);
+CREATE INDEX IF NOT EXISTS audit_at ON audit(at);
 CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL, pw TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'buyer', clients TEXT NOT NULL DEFAULT '[]', created TEXT);`);
 const hashPw = (pw, salt = crypto.randomBytes(16).toString('hex')) => salt + ':' + crypto.scryptSync(String(pw), salt, 32).toString('hex');
 const checkPw = (pw, stored) => { const [salt, h] = stored.split(':'); const a = Buffer.from(h, 'hex'), b = crypto.scryptSync(String(pw), salt, 32); return a.length === b.length && crypto.timingSafeEqual(a, b); };
@@ -28,6 +30,15 @@ const connStore = {
   set: (p, d, by) => db.prepare('INSERT INTO connections(platform,data,by,at) VALUES(?,?,?,?) ON CONFLICT(platform) DO UPDATE SET data=excluded.data, by=COALESCE(excluded.by,connections.by), at=COALESCE(excluded.at,connections.at)').run(p, JSON.stringify(d), by || null, by ? new Date().toISOString() : null),
 };
 const oauthStates = new Map();
+// سجل النشاط: من فعل ماذا ومتى (يُحتفظ به 180 يومًا)
+let auditN = 0;
+const ipOf = req => String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+const audit = (req, user, action, detail = {}, client = null) => {
+  try {
+    db.prepare('INSERT INTO audit(at,user,action,client,detail,ip) VALUES(?,?,?,?,?,?)').run(new Date().toISOString(), user || null, action, client, JSON.stringify(detail), req ? ipOf(req) : null);
+    if (++auditN % 200 === 0) db.prepare('DELETE FROM audit WHERE at < ?').run(new Date(Date.now() - 180 * 864e5).toISOString());
+  } catch (e) { console.error('audit', e.message); }
+};
 const SETTING_KEYS = { META_APP_ID: 0, META_APP_SECRET: 1, TIKTOK_APP_ID: 0, TIKTOK_APP_SECRET: 1, SNAP_CLIENT_ID: 0, SNAP_CLIENT_SECRET: 1 };
 const getSetting = k => { const r = db.prepare('SELECT v FROM settings WHERE k=?').get(k); return r ? r.v : null; };
 P.setConfigSource(getSetting);
@@ -44,6 +55,31 @@ const cookies = req => Object.fromEntries((req.headers.cookie || '').split(';').
 const sessionUser = req => { try { const v = unsign(cookies(req).audit_s); if (!v) return null; const [id, exp] = v.split('|');
   return +exp > Date.now() ? getUser(id) : null; } catch { return null; } };
 
+// يسجّل التغييرات المهمة على العملاء والأهداف وحذف البيانات
+function auditDoc(req, me, col, id, before, after) {
+  const accKey = a => a.platform + ':' + a.accountId;
+  if (col === 'clients') {
+    if (!before && after) return audit(req, me.id, 'client_add', { name: after.name }, id);
+    if (before && !after) return audit(req, me.id, 'client_delete', { name: before.name }, id);
+    const b = new Map((before.accounts || []).map(a => [accKey(a), a])), a = new Map((after.accounts || []).map(x => [accKey(x), x]));
+    const added = [...a.keys()].filter(k => !b.has(k)).map(k => ({ platform: a.get(k).platform, id: a.get(k).accountId, name: a.get(k).name || '' }));
+    const removed = [...b.keys()].filter(k => !a.has(k)).map(k => ({ platform: b.get(k).platform, id: b.get(k).accountId, name: b.get(k).name || '' }));
+    if (added.length) audit(req, me.id, 'accounts_link', { client: after.name, accounts: added }, id);
+    if (removed.length) audit(req, me.id, 'accounts_unlink', { client: after.name, accounts: removed }, id);
+    const ch = {}; if (before.name !== after.name) ch.name = [before.name, after.name]; if (before.currency !== after.currency) ch.currency = [before.currency, after.currency];
+    for (const [k, x] of a) { const o = b.get(k); if (o && (+o.fx || 1) !== (+x.fx || 1)) (ch.fx = ch.fx || []).push({ account: x.name || x.accountId, from: +o.fx || 1, to: +x.fx || 1 }); }
+    if (Object.keys(ch).length) audit(req, me.id, 'client_update', { client: after.name, ...ch }, id);
+    return;
+  }
+  if (col === 'targets') {
+    const t = after || before, cid = t?.clientId;
+    if (!after) return audit(req, me.id, 'target_delete', { month: before?.month, sales: before?.sales }, cid);
+    const pick = x => x ? { sales: x.sales, budget: x.budget, roas: x.roas, orders: x.orders, basis: x.basis } : null;
+    return audit(req, me.id, 'target_set', { month: after.month, before: pick(before), after: pick(after) }, cid);
+  }
+  if (!after && before && ['edits', 'daily', 'store', 'tasks'].includes(col)) audit(req, me.id, 'data_delete', { col, date: before.date || before.at || null, entity: before.entity || before.title || before.platform || '' }, before.clientId || null);
+}
+
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
 const send = (res, code, obj, headers = {}) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers }); res.end(JSON.stringify(obj)); };
 const body = req => new Promise((ok, bad) => { let b = ''; req.on('data', c => { b += c; if (b.length > 5e6) req.destroy(); });
@@ -59,13 +95,15 @@ const server = http.createServer(async (req, res) => {
         if (userCount() > 0) return send(res, 403, { error: 'already set up' });
         if (!/^[a-z0-9._-]{2,30}$/.test(id) || String(password || '').length < 6) return send(res, 400, { error: 'اليوزر بالإنجليزية وبدون مسافات، وكلمة المرور 6 أحرف على الأقل' });
         db.prepare('INSERT INTO users(id,name,pw,role,clients,created) VALUES(?,?,?,?,?,?)').run(id, name || id, hashPw(password), 'admin', '[]', new Date().toISOString());
+        audit(req, id, 'setup');
       }
       const u = db.prepare('SELECT * FROM users WHERE id=?').get(id);
-      if (!u || !checkPw(password || '', u.pw)) return send(res, 401, { error: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
+      if (!u || !checkPw(password || '', u.pw)) { audit(req, id || null, 'login_failed'); return send(res, 401, { error: 'اسم المستخدم أو كلمة المرور غير صحيحة' }); }
+      audit(req, u.id, 'login');
       const exp = Date.now() + 30 * 864e5;
       return send(res, 200, { ok: true }, { 'Set-Cookie': `audit_s=${encodeURIComponent(sign(u.id + '|' + exp))}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30 * 86400}` });
     }
-    if (p === '/api/logout') { res.writeHead(302, { Location: '/login.html', 'Set-Cookie': 'audit_s=; Path=/; Max-Age=0' }); return res.end(); }
+    if (p === '/api/logout') { const lu = sessionUser(req); if (lu) audit(req, lu.id, 'logout'); res.writeHead(302, { Location: '/login.html', 'Set-Cookie': 'audit_s=; Path=/; Max-Age=0' }); return res.end(); }
     if (p === '/healthz') return send(res, 200, { ok: true });
 
     if (p.startsWith('/api/')) {
@@ -81,6 +119,7 @@ const server = http.createServer(async (req, res) => {
           if (getUser(id)) return send(res, 400, { error: 'اسم المستخدم مستخدم بالفعل' });
           if (String(b.password || '').length < 6) return send(res, 400, { error: 'كلمة المرور 6 أحرف على الأقل' });
           db.prepare('INSERT INTO users(id,name,pw,role,clients,created) VALUES(?,?,?,?,?,?)').run(id, b.name || id, hashPw(b.password), b.role === 'admin' ? 'admin' : 'buyer', JSON.stringify(b.clients || []), new Date().toISOString());
+          audit(req, me.id, 'user_add', { id, role: b.role === 'admin' ? 'admin' : 'buyer', clients: (b.clients || []).length });
           return send(res, 200, { ok: true });
         }
         const u = getUser(id); if (!u) return send(res, 404, { error: 'not found' });
@@ -88,9 +127,22 @@ const server = http.createServer(async (req, res) => {
           if (id === me.id && b.role && b.role !== 'admin') return send(res, 400, { error: 'لا يمكنك إزالة صلاحية المدير عن حسابك' });
           db.prepare('UPDATE users SET name=?, role=?, clients=? WHERE id=?').run(b.name ?? u.name, b.role ? (b.role === 'admin' ? 'admin' : 'buyer') : u.role, JSON.stringify(b.clients ?? u.clients), id);
           if (b.password) { if (String(b.password).length < 6) return send(res, 400, { error: 'كلمة المرور 6 أحرف على الأقل' }); db.prepare('UPDATE users SET pw=? WHERE id=?').run(hashPw(b.password), id); }
+          const ch = {}; if (b.role && b.role !== u.role) ch.role = [u.role, b.role]; if (b.name && b.name !== u.name) ch.name = [u.name, b.name]; if (b.password) ch.password = true;
+          if (b.clients) { const add = b.clients.filter(x => !u.clients.includes(x)), rem = u.clients.filter(x => !b.clients.includes(x)); if (add.length) ch.clientsAdded = add; if (rem.length) ch.clientsRemoved = rem; }
+          if (Object.keys(ch).length) audit(req, me.id, 'user_update', { id, ...ch });
           bump(); return send(res, 200, { ok: true });
         }
-        if (req.method === 'DELETE') { if (id === me.id) return send(res, 400, { error: 'لا يمكنك حذف حسابك' }); db.prepare('DELETE FROM users WHERE id=?').run(id); return send(res, 200, { ok: true }); }
+        if (req.method === 'DELETE') { if (id === me.id) return send(res, 400, { error: 'لا يمكنك حذف حسابك' }); db.prepare('DELETE FROM users WHERE id=?').run(id); audit(req, me.id, 'user_delete', { id, name: u.name }); return send(res, 200, { ok: true }); }
+      }
+      if (p === '/api/audit') {
+        if (me.role !== 'admin') return send(res, 403, { error: 'admins only' });
+        const lim = Math.min(+q.get('limit') || 300, 2000), conds = [], args = [];
+        if (q.get('user')) { conds.push('user=?'); args.push(q.get('user')); }
+        if (q.get('action')) { conds.push('action LIKE ?'); args.push(q.get('action') + '%'); }
+        if (q.get('since')) { conds.push('at>=?'); args.push(q.get('since')); }
+        const rows = db.prepare(`SELECT * FROM audit ${conds.length ? 'WHERE ' + conds.join(' AND ') : ''} ORDER BY id DESC LIMIT ${lim}`).all(...args)
+          .map(r => ({ ...r, detail: (() => { try { return JSON.parse(r.detail || '{}'); } catch { return {}; } })() }));
+        return send(res, 200, { rows });
       }
       if (p === '/api/settings') {
         if (me.role !== 'admin') return send(res, 403, { error: 'admins only' });
@@ -100,10 +152,11 @@ const server = http.createServer(async (req, res) => {
         if (req.method === 'PUT') { const b = await body(req);
           for (const [k, v] of Object.entries(b || {})) { if (!(k in SETTING_KEYS) || typeof v !== 'string') continue; const t = v.trim(); if (!t) continue;
             db.prepare('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v').run(k, t); }
+          audit(req, me.id, 'settings_update', { keys: Object.keys(b || {}).filter(k => k in SETTING_KEYS && String(b[k] || '').trim()) });
           return send(res, 200, { ok: true }); }
         if (req.method === 'DELETE') { const plat = { meta: ['META_APP_ID', 'META_APP_SECRET'], tiktok: ['TIKTOK_APP_ID', 'TIKTOK_APP_SECRET'], snapchat: ['SNAP_CLIENT_ID', 'SNAP_CLIENT_SECRET'] }[q.get('platform')];
           if (!plat) return send(res, 400, { error: 'platform' }); for (const k of plat) db.prepare('DELETE FROM settings WHERE k=?').run(k);
-          db.prepare('DELETE FROM connections WHERE platform=?').run(q.get('platform')); return send(res, 200, { ok: true }); }
+          db.prepare('DELETE FROM connections WHERE platform=?').run(q.get('platform')); audit(req, me.id, 'settings_clear', { platform: q.get('platform') }); return send(res, 200, { ok: true }); }
       }
       if (p === '/api/connections') {
         return send(res, 200, Object.fromEntries(Object.entries(P.PLATFORMS).map(([k, v]) => { const c = connStore.get(k);
@@ -121,8 +174,8 @@ const server = http.createServer(async (req, res) => {
         const st = oauthStates.get(q.get('state')); oauthStates.delete(q.get('state'));
         const back = (ok, msg) => { res.writeHead(302, { Location: '/#accounts?' + new URLSearchParams({ conn: mCb[1], ok: ok ? '1' : '0', msg: msg || '' }) }); res.end(); };
         if (!st || st.p !== mCb[1] || st.exp < Date.now() || st.u !== me.id) return back(false, 'انتهت مهلة الربط، حاول مرة أخرى');
-        try { const data = await P.exchange(mCb[1], q); connStore.set(mCb[1], data, me.id); return back(true); }
-        catch (e) { console.error('oauth', mCb[1], e.message); return back(false, e.message); }
+        try { const data = await P.exchange(mCb[1], q); connStore.set(mCb[1], data, me.id); audit(req, me.id, 'platform_connect', { platform: mCb[1], name: data.name || '' }); return back(true); }
+        catch (e) { console.error('oauth', mCb[1], e.message); audit(req, me.id, 'platform_connect_failed', { platform: mCb[1], error: String(e.message).slice(0, 200) }); return back(false, e.message); }
       }
       if (p === '/api/sync' && req.method === 'POST') {
         const { clientId, month } = await body(req);
@@ -171,8 +224,10 @@ const server = http.createServer(async (req, res) => {
             const keys = x => JSON.stringify((x.accounts || []).map(a => a.platform + ':' + a.accountId).sort());
             if (keys(d) !== keys(curData)) return send(res, 403, { error: 'ربط الحسابات بالعملاء متاح للمدير فقط' });
           }
-          db.prepare('INSERT INTO docs(path,col,id,data) VALUES(?,?,?,?) ON CONFLICT(path) DO UPDATE SET data=excluded.data').run(key, col, id, JSON.stringify(d)); bump(); return send(res, 200, { ok: true }); }
-        if (req.method === 'DELETE') { db.prepare('DELETE FROM docs WHERE path=?').run(key); bump(); return send(res, 200, { ok: true }); }
+          db.prepare('INSERT INTO docs(path,col,id,data) VALUES(?,?,?,?) ON CONFLICT(path) DO UPDATE SET data=excluded.data').run(key, col, id, JSON.stringify(d)); bump();
+          auditDoc(req, me, col, id, curData, d);
+          return send(res, 200, { ok: true }); }
+        if (req.method === 'DELETE') { db.prepare('DELETE FROM docs WHERE path=?').run(key); bump(); auditDoc(req, me, col, id, curData, null); return send(res, 200, { ok: true }); }
       }
       if (p === '/api/add' && req.method === 'POST') { const { col, data } = await body(req); if (!canSee(col, null, data)) return send(res, 403, { error: 'ليس لديك صلاحية' }); const id = crypto.randomUUID().replace(/-/g, '').slice(0, 20);
         db.prepare('INSERT INTO docs(path,col,id,data) VALUES(?,?,?,?)').run(col + '/' + id, col, id, JSON.stringify(data || {})); bump(); return send(res, 200, { id }); }

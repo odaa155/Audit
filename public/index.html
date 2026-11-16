@@ -61,7 +61,8 @@
         <a class="tab" href="#overview" data-view="overview">نظرة عامة</a>
         <a class="tab" href="#performance" data-view="performance">الأداء اليومي</a>
         <a class="tab" href="#changelog" data-view="changelog">سجل التعديلات<span class="nav-badge hidden" id="navBadge" aria-label="تعديلات جديدة"></span></a>
-        <a class="tab" href="#targets" data-view="targets">الهدف</a>
+        <a class="tab" href="#tasks" data-view="tasks">المهام<span class="nav-badge hidden" id="taskBadge" aria-label="مهام مستحقة"></span></a>
+        <a class="tab" href="#targets" data-view="targets">الهدف والميزانية</a>
         <a class="tab" href="#accounts" data-view="accounts">الحسابات والعملاء</a>
         <a class="tab admin-only hidden" href="#users" data-view="users">المستخدمون</a>
         <a class="tab admin-only hidden" href="#settings" data-view="settings">ربط المنصات</a>
@@ -138,10 +139,30 @@
           </div>
           <div id="requiredBody" class="section"></div>
         </section>
-        <section class="section">
-          <div class="section-head"><div class="actions"><h2>آخر التعديلات على الحسابات</h2><span id="recentNew"></span></div><a class="btn btn-sm btn-ghost" href="#changelog">عرض السجل كاملًا ←</a></div>
-          <div class="recent" id="recentEdits"></div>
-        </section>
+        <div class="dash-grid">
+          <section class="section span-2">
+            <div class="section-head"><div class="actions"><h2>آخر التعديلات على الحسابات</h2><span id="recentNew"></span></div><a class="btn btn-sm btn-ghost" href="#changelog">عرض السجل كاملًا ←</a></div>
+            <div class="recent" id="recentEdits"></div>
+          </section>
+          <section class="section">
+            <div class="section-head"><h2>المهام المفتوحة</h2><a class="btn btn-sm btn-ghost" href="#tasks">كل المهام ←</a></div>
+            <div class="recent" id="recentTasks"></div>
+          </section>
+        </div>
+      </section>
+
+      <!-- ===== TASKS ===== -->
+      <section class="view hidden" id="view-tasks" aria-labelledby="tkTitle">
+        <div class="page-head">
+          <div class="titles"><h1 id="tkTitle">المهام</h1><p id="tkSub">مهام الفريق لكل عميل: من المسؤول، وموعد التسليم، والحالة.</p></div>
+          <div class="actions"><button type="button" class="btn-primary" id="openTask"><svg class="ic sm"><use href="#i-plus"/></svg>مهمة جديدة</button></div>
+        </div>
+        <div class="toolbar">
+          <div class="seg" id="tkStatus" role="group" aria-label="الحالة"><button type="button" data-v="open" aria-pressed="true">المفتوحة</button><button type="button" data-v="done" aria-pressed="false">المكتملة</button><button type="button" data-v="all" aria-pressed="false">الكل</button></div>
+          <select id="tkOwner" aria-label="تصفية حسب المسؤول"></select>
+          <div class="search"><svg class="ic sm"><use href="#i-search"/></svg><input id="tkQ" type="search" placeholder="ابحث في المهام…" aria-label="بحث"></div>
+        </div>
+        <div class="log" id="taskList"></div>
       </section>
 
       <!-- ===== PERFORMANCE ===== -->
@@ -210,6 +231,18 @@
           <div class="section-head"><h2>كل الأهداف</h2><span class="sub">اضغط على شهر لعرضه</span></div>
           <div class="tbl-wrap"><table id="targetsTbl"></table></div>
         </section>
+
+        <section class="card pad-lg" id="planner" aria-labelledby="plTitle" style="display:grid;gap:18px">
+          <div class="card-head" style="margin:0"><div><h2 id="plTitle">تخطيط الميزانية</h2><p class="sub" id="plSub">أدخل هدف المبيعات، وسيقترح التطبيق الميزانية وتوزيعها على المنصات بناءً على أدائها السابق.</p></div></div>
+          <div class="form-grid">
+            <label class="field" for="plMonth">الشهر المخطط له<input id="plMonth" type="month"></label>
+            <label class="field" for="plSales">هدف المبيعات<input id="plSales" type="number" min="0" step="1" inputmode="numeric" dir="ltr"></label>
+            <label class="field" for="plLook">الأداء المرجعي<select id="plLook"><option value="30">آخر 30 يومًا</option><option value="60">آخر 60 يومًا</option><option value="90">آخر 90 يومًا</option></select></label>
+            <label class="field" for="plMargin">هامش أمان على ROAS <span class="hint">لأن العائد يقل غالبًا مع زيادة الصرف</span><select id="plMargin"><option value="0">بدون</option><option value="0.1" selected>10%</option><option value="0.15">15%</option><option value="0.2">20%</option></select></label>
+            <label class="field" for="plMode">طريقة التوزيع<select id="plMode"><option value="spend">بنفس نسب الصرف الحالية</option><option value="roas">ميل نحو المنصات الأعلى ROAS</option><option value="manual">يدوي</option></select></label>
+          </div>
+          <div id="plOut"></div>
+        </section>
       </section>
 
       <!-- ===== ACCOUNTS ===== -->
@@ -256,8 +289,21 @@
           <div class="titles"><h1 id="uTitle">المستخدمون</h1><p id="usersSub"></p></div>
           <div class="actions"><button type="button" class="btn-primary" id="openAddUser"><svg class="ic sm"><use href="#i-plus"/></svg>إضافة مستخدم</button></div>
         </div>
-        <div class="notice info"><svg class="ic"><use href="#i-info"/></svg><div>يرى مسؤول الحملات العملاء المعيّنين له فقط ويعدّل بياناتهم. أما المدير فيرى كل شيء، ويمكنه إضافة العملاء وربط المنصات.</div></div>
-        <div id="usersList"></div>
+        <div class="seg" id="uTabs" role="tablist" aria-label="أقسام الصفحة"><button type="button" role="tab" data-v="team" aria-pressed="true">الفريق</button><button type="button" role="tab" data-v="activity" aria-pressed="false">سجل النشاط</button></div>
+        <div id="uTeam" style="display:grid;gap:16px">
+          <div class="notice info"><svg class="ic"><use href="#i-info"/></svg><div>يرى مسؤول الحملات العملاء المعيّنين له فقط ويعدّل بياناتهم. أما المدير فيرى كل شيء، ويمكنه إضافة العملاء وربط المنصات.</div></div>
+          <div id="usersList"></div>
+        </div>
+        <div id="uActivity" class="hidden" style="display:grid;gap:14px">
+          <div class="toolbar">
+            <select id="acUser" aria-label="تصفية حسب المستخدم"><option value="">كل المستخدمين</option></select>
+            <select id="acType" aria-label="تصفية حسب النوع"><option value="">كل الأنشطة</option><option value="login">الدخول والخروج</option><option value="user">المستخدمون</option><option value="client">العملاء</option><option value="accounts">ربط الحسابات</option><option value="target">الأهداف</option><option value="settings">إعدادات المنصات</option><option value="platform">ربط المنصات</option><option value="data_delete">حذف بيانات</option></select>
+            <div class="search"><svg class="ic sm"><use href="#i-search"/></svg><input id="acQ" type="search" placeholder="ابحث في السجل…" aria-label="بحث"></div>
+            <button type="button" class="btn-sm" id="acReload"><svg class="ic sm"><use href="#i-refresh"/></svg>تحديث</button>
+          </div>
+          <div class="tbl-wrap scroll"><table id="acTbl"></table></div>
+          <p class="muted small">يُحتفظ بالسجل 180 يومًا. لا يمكن تعديله أو حذفه من داخل التطبيق.</p>
+        </div>
       </section>
 
       <!-- ===== SETTINGS (admin) ===== -->
@@ -365,6 +411,24 @@
       <div class="field">العملاء المسموح بمتابعتهم<div class="chips" id="uClients"></div></div>
     </div>
     <div class="dlg-foot"><button type="button" data-close>إلغاء</button><button class="btn-primary" type="submit" id="uSubmit">إضافة المستخدم</button></div>
+  </form>
+</dialog>
+
+<dialog id="taskDlg" aria-labelledby="taskDlgT">
+  <form class="dlg" id="taskForm" autocomplete="off">
+    <div class="dlg-head"><h2 id="taskDlgT">مهمة جديدة</h2><button class="btn-ghost icon-btn" type="button" data-close aria-label="إغلاق"><svg class="ic"><use href="#i-x"/></svg></button></div>
+    <div class="dlg-body">
+      <div class="form-grid">
+        <label class="field wide" for="tkTitleIn">المهمة<input id="tkTitleIn" required maxlength="200" placeholder="مثال: اختبار إعلان جديد على Snapchat"></label>
+        <label class="field" for="tkOwnerIn">المسؤول<select id="tkOwnerIn"></select></label>
+        <label class="field" for="tkDue">موعد التسليم <span class="hint">اختياري</span><input id="tkDue" type="date"></label>
+        <label class="field" for="tkState">الحالة<select id="tkState"><option value="open">مفتوحة</option><option value="doing">قيد التنفيذ</option><option value="done">مكتملة</option></select></label>
+        <label class="field" for="tkPlat">المنصة <span class="hint">اختياري</span><select id="tkPlat"></select></label>
+        <label class="field wide" for="tkNote">تفاصيل <span class="hint">اختياري</span><textarea id="tkNote" style="direction:rtl;font-family:var(--f-body);font-size:14px;min-height:80px" maxlength="1000"></textarea></label>
+      </div>
+      <p class="muted small hidden" id="tkLinked"></p>
+    </div>
+    <div class="dlg-foot"><button type="button" class="btn-danger hidden" id="tkDelete" style="margin-inline-end:auto">حذف</button><button type="button" data-close>إلغاء</button><button class="btn-primary" type="submit" id="tkSave">حفظ المهمة</button></div>
   </form>
 </dialog>
 
