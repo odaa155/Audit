@@ -48,6 +48,8 @@
   <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
   <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></symbol>
   <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14M19 12l-7 7-7-7"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
 </svg>
 
@@ -74,6 +76,7 @@
           <button class="avatar-btn" type="button" id="meBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="meMenu"><span class="avatar" id="meAvatar">·</span></button>
           <div class="menu hidden" id="meMenu" role="menu">
             <div class="menu-head"><b id="meName">جارٍ التحميل…</b><span id="meRole"></span></div>
+            <button type="button" class="menu-item" role="menuitem" id="tgMenu"><svg class="ic sm"><use href="#i-send"/></svg>ربط تيليجرام<span class="pill plain hidden" id="tgMenuState" style="margin-inline-start:auto"></span></button>
             <a class="menu-item" role="menuitem" href="/api/logout"><svg class="ic sm"><use href="#i-logout"/></svg>تسجيل الخروج</a>
           </div>
         </div>
@@ -265,6 +268,7 @@
             <label class="field" for="cCur">عملة التقارير<select id="cCur"></select></label>
             <div class="actions" style="align-self:end"><button type="button" id="saveClient">حفظ</button><button class="btn-danger" type="button" id="delClient">حذف العميل</button></div>
           </div>
+          <div class="alert-rules" id="alertRules"></div>
         </div>
 
         <section class="section">
@@ -433,6 +437,13 @@
     </div>
     <div class="dlg-foot"><button type="button" class="btn-danger hidden" id="tkDelete" style="margin-inline-end:auto">حذف</button><button type="button" data-close>إلغاء</button><button class="btn-primary" type="submit" id="tkSave">حفظ المهمة</button></div>
   </form>
+</dialog>
+
+<dialog id="tgDlg" aria-labelledby="tgDlgT">
+  <div class="dlg">
+    <div class="dlg-head"><div><h2 id="tgDlgT">تنبيهات تيليجرام</h2><p>استقبل تنبيهات العملاء المعيّنين لك على تيليجرام.</p></div><button class="btn-ghost icon-btn" type="button" data-close aria-label="إغلاق"><svg class="ic"><use href="#i-x"/></svg></button></div>
+    <div class="dlg-body" id="tgBody"></div>
+  </div>
 </dialog>
 
 <dialog id="confirmDlg" class="sm" role="alertdialog" aria-labelledby="confirmT">

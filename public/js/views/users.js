@@ -58,6 +58,7 @@ const ACTIONS = {
   accounts_unlink: ["فك ربط حسابات", "warn", d => `${d.client}: ${accList(d.accounts)}`],
   target_set: ["تحديد هدف", "neutral", (d, r) => `${clientNameOf(r.client)} · ${d.month}: ${d.before?.sales ? money(d.before.sales) + " ← " : ""}${money(d.after?.sales)}${d.after?.budget ? ` · ميزانية ${money(d.after.budget)}` : ""}`],
   target_delete: ["حذف هدف", "bad", (d, r) => `${clientNameOf(r.client)} · ${d.month}`],
+  telegram_unlink: ["فك ربط تيليجرام", "warn", () => ""],
   data_delete: ["حذف بيانات", "bad", (d, r) => `${clientNameOf(r.client)} · ${{ edits: "تعديل", daily: "أرقام يومية", store: "أرقام المتجر", tasks: "مهمة" }[d.col] || d.col}${d.entity ? ": " + d.entity : ""}${d.date ? " · " + String(d.date).slice(0, 10) : ""}`],
 };
 const TYPE = { login: ["login", "login_failed", "logout", "setup"], user: ["user_"], client: ["client_"], accounts: ["accounts_"], target: ["target_"], settings: ["settings_"], platform: ["platform_"], data_delete: ["data_delete"] };

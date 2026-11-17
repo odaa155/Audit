@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import * as P from './platforms.js';
 import { syncClient, startAutoSync } from './sync.js';
+import { createTelegram } from './telegram.js';
 
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || '/data';
@@ -39,9 +40,11 @@ const audit = (req, user, action, detail = {}, client = null) => {
     if (++auditN % 200 === 0) db.prepare('DELETE FROM audit WHERE at < ?').run(new Date(Date.now() - 180 * 864e5).toISOString());
   } catch (e) { console.error('audit', e.message); }
 };
-const SETTING_KEYS = { META_APP_ID: 0, META_APP_SECRET: 1, TIKTOK_APP_ID: 0, TIKTOK_APP_SECRET: 1, SNAP_CLIENT_ID: 0, SNAP_CLIENT_SECRET: 1 };
+const SETTING_KEYS = { META_APP_ID: 0, META_APP_SECRET: 1, TIKTOK_APP_ID: 0, TIKTOK_APP_SECRET: 1, SNAP_CLIENT_ID: 0, SNAP_CLIENT_SECRET: 1, TELEGRAM_BOT_TOKEN: 1 };
 const getSetting = k => { const r = db.prepare('SELECT v FROM settings WHERE k=?').get(k); return r ? r.v : null; };
 P.setConfigSource(getSetting);
+const tg = createTelegram({ db, getSetting, getUser });
+const onSynced = (clientId, month, results) => { if (month === new Date().toISOString().slice(0, 7) || month === new Date(Date.now() - 864e5).toISOString().slice(0, 7)) return tg.runClient(clientId, results).catch(e => console.error('tg alerts', e.message)); };
 const pub = u => ({ id: u.id, name: u.name, role: u.role, clients: u.clients });
 const bump = () => db.prepare(`UPDATE meta SET v = v + 1 WHERE k='version'`).run();
 const version = () => db.prepare(`SELECT v FROM meta WHERE k='version'`).get().v;
@@ -134,6 +137,34 @@ const server = http.createServer(async (req, res) => {
         }
         if (req.method === 'DELETE') { if (id === me.id) return send(res, 400, { error: 'لا يمكنك حذف حسابك' }); db.prepare('DELETE FROM users WHERE id=?').run(id); audit(req, me.id, 'user_delete', { id, name: u.name }); return send(res, 200, { ok: true }); }
       }
+      if (p.startsWith('/api/telegram')) {
+        if (p === '/api/telegram' && req.method === 'GET') {
+          let bot = null, error = null; try { bot = (await tg.me())?.username || null; } catch (e) { error = e.message; }
+          return send(res, 200, { configured: !!getSetting('TELEGRAM_BOT_TOKEN'), bot, error, links: tg.links(me.id), isAdmin: me.role === 'admin' });
+        }
+        if (p === '/api/telegram/link' && req.method === 'POST') {
+          let bot; try { bot = (await tg.me())?.username; } catch (e) { return send(res, 400, { error: 'تعذّر الوصول للبوت: ' + e.message }); }
+          if (!bot) return send(res, 400, { error: 'لم يتم إعداد بوت تيليجرام بعد. اطلب من المدير إضافته من صفحة ربط المنصات.' });
+          const code = tg.newCode(me.id);
+          return send(res, 200, { code, bot, url: `https://t.me/${bot}?start=${code}`, groupUrl: `https://t.me/${bot}?startgroup=${code}` });
+        }
+        if (p === '/api/telegram/test' && req.method === 'POST') {
+          const chats = tg.links(me.id).filter(l => l.enabled); let ok = 0;
+          for (const l of chats) if (await tg.send(l.chat_id, `🔔 رسالة تجربة من audit
+مرحبًا ${me.name}، التنبيهات تعمل في هذه المحادثة ✅`)) ok++;
+          return send(res, 200, { sent: ok, total: chats.length });
+        }
+        if (p === '/api/telegram/chat') {
+          const b = req.method === 'PUT' ? await body(req) : { chat_id: q.get('chat_id') };
+          const n = req.method === 'PUT' ? tg.setEnabled(me.id, b.chat_id, !!b.enabled) : req.method === 'DELETE' ? tg.unlink(me.id, b.chat_id) : 0;
+          if (req.method === 'DELETE' && n) audit(req, me.id, 'telegram_unlink', { chat: b.chat_id });
+          return send(res, n ? 200 : 404, n ? { ok: true } : { error: 'not found' });
+        }
+        if (p === '/api/telegram/preview' && req.method === 'GET') {
+          const cid = q.get('client'); if (me.role !== 'admin' && !me.clients.includes(cid)) return send(res, 403, { error: 'ليس لديك صلاحية' });
+          return send(res, 200, { alerts: tg.evaluate(cid).map(a => ({ text: a.text.replace(/<[^>]+>/g, '') })), summary: (tg.summaryFor(cid) || '').replace(/<[^>]+>/g, ''), recipients: tg.chatsForClient(cid).length });
+        }
+      }
       if (p === '/api/audit') {
         if (me.role !== 'admin') return send(res, 403, { error: 'admins only' });
         const lim = Math.min(+q.get('limit') || 300, 2000), conds = [], args = [];
@@ -154,7 +185,7 @@ const server = http.createServer(async (req, res) => {
             db.prepare('INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v').run(k, t); }
           audit(req, me.id, 'settings_update', { keys: Object.keys(b || {}).filter(k => k in SETTING_KEYS && String(b[k] || '').trim()) });
           return send(res, 200, { ok: true }); }
-        if (req.method === 'DELETE') { const plat = { meta: ['META_APP_ID', 'META_APP_SECRET'], tiktok: ['TIKTOK_APP_ID', 'TIKTOK_APP_SECRET'], snapchat: ['SNAP_CLIENT_ID', 'SNAP_CLIENT_SECRET'] }[q.get('platform')];
+        if (req.method === 'DELETE') { const plat = { meta: ['META_APP_ID', 'META_APP_SECRET'], tiktok: ['TIKTOK_APP_ID', 'TIKTOK_APP_SECRET'], snapchat: ['SNAP_CLIENT_ID', 'SNAP_CLIENT_SECRET'], telegram: ['TELEGRAM_BOT_TOKEN'] }[q.get('platform')];
           if (!plat) return send(res, 400, { error: 'platform' }); for (const k of plat) db.prepare('DELETE FROM settings WHERE k=?').run(k);
           db.prepare('DELETE FROM connections WHERE platform=?').run(q.get('platform')); audit(req, me.id, 'settings_clear', { platform: q.get('platform') }); return send(res, 200, { ok: true }); }
       }
@@ -181,7 +212,7 @@ const server = http.createServer(async (req, res) => {
         const { clientId, month } = await body(req);
         if (!clientId || !/^\d{4}-\d{2}$/.test(String(month || ''))) return send(res, 400, { error: 'clientId / month' });
         if (me.role !== 'admin' && !me.clients.includes(clientId)) return send(res, 403, { error: 'ليس لديك صلاحية على هذا العميل' });
-        try { return send(res, 200, await syncClient({ db, P, connStore, bump, clientId, month, by: me.id })); }
+        try { return send(res, 200, await syncClient({ db, P, connStore, bump, clientId, month, by: me.id, onSynced })); }
         catch (e) { console.error('sync', clientId, e.message); return send(res, 500, { error: e.message }); }
       }
       if (p === '/api/mcp' && req.method === 'POST') {
@@ -251,4 +282,5 @@ const server = http.createServer(async (req, res) => {
   } catch (e) { console.error(e); send(res, 500, { error: 'server error' }); }
 });
 server.listen(PORT, () => console.log('audit listening on ' + PORT));
-if (process.env.AUTO_SYNC !== 'off') startAutoSync({ db, P, connStore, bump });
+if (process.env.AUTO_SYNC !== 'off') startAutoSync({ db, P, connStore, bump, onSynced });
+tg.start();

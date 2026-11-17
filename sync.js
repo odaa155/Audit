@@ -42,7 +42,7 @@ async function fetchSnap(call, acc, since, until) {
 const FETCH = { meta: fetchMeta, tiktok: fetchTikTok, snapchat: fetchSnap };
 
 // يجلب شهرًا كاملًا لعميل واحد ويكتب الأيام المتغيرة فقط
-export async function syncClient({ db, P, connStore, bump, clientId, month, by = 'system' }) {
+export async function syncClient({ db, P, connStore, bump, clientId, month, by = 'system', onSynced }) {
   const row = db.prepare('SELECT data FROM docs WHERE path=?').get('clients/' + clientId);
   if (!row) throw new Error('client not found');
   const client = JSON.parse(row.data);
@@ -83,6 +83,7 @@ export async function syncClient({ db, P, connStore, bump, clientId, month, by =
   bump();
   let edits = null;
   try { edits = await syncEdits({ db, P, connStore, bump, clientId }); } catch (e) { console.error('edits sync', clientId, e.message); }
+  if (onSynced) await onSynced(clientId, month, results);
   return { results, writes, edits };
 }
 

@@ -1,5 +1,5 @@
 // Platform connections (admin): OAuth app credentials + connect/reconnect per platform.
-import { $, el, icon, api, toast, confirmDialog, platChip, busy, PMAP } from "../lib.js";
+import { $, el, icon, api, toast, confirmDialog, platChip, busy, PMAP, notice } from "../lib.js";
 
 const PL = [
   { k: "meta", id: "META_APP_ID", sec: "META_APP_SECRET", idL: "App ID", secL: "App Secret",
@@ -48,9 +48,36 @@ async function load() {
     }));
     box.append(card);
   }
+  box.append(await telegramCard(s));
+}
+
+async function telegramCard(s) {
+  const k = s.keys.TELEGRAM_BOT_TOKEN || { set: false, value: "" };
+  let st = {}; try { st = await api("/api/telegram"); } catch (_) {}
+  const pill = st.bot ? el("span", { class: "pill good" }, el("span", { class: "dot" }), "@" + st.bot)
+    : k.set ? el("span", { class: "pill bad" }, el("span", { class: "dot" }), "التوكن غير صالح") : el("span", { class: "pill warn" }, el("span", { class: "dot" }), "غير مُعد");
+  const tok = el("input", { type: "password", dir: "ltr", id: "s_TELEGRAM_BOT_TOKEN", autocomplete: "new-password", placeholder: k.set ? k.value + "  (اتركه فارغًا إن لم ترغب في تغييره)" : "123456789:AA…" });
+  const save = el("button", { class: "btn-primary", type: "button" }, "حفظ");
+  save.addEventListener("click", () => busy(save, async () => {
+    if (!tok.value.trim()) { toast("أدخل توكن البوت", "bad"); tok.focus(); return; }
+    if (!/^\d+:[\w-]{30,}$/.test(tok.value.trim())) { toast("صيغة التوكن غير صحيحة. انسخه كما هو من BotFather.", "bad"); return; }
+    try { await api("/api/settings", { method: "PUT", body: JSON.stringify({ TELEGRAM_BOT_TOKEN: tok.value.trim() }) }); const t = await api("/api/telegram"); toast(t.bot ? `تم ربط البوت @${t.bot}` : `تم الحفظ، لكن تعذّر الوصول للبوت: ${t.error || ""}`, t.bot ? "good" : "bad"); load(); } catch (e) { toast(e.message, "bad"); }
+  }));
+  return el("section", { class: "card pad-lg", id: "telegram", style: "display:grid;gap:16px" },
+    el("div", { class: "card-head", style: "margin:0" }, el("h2", {}, el("span", { class: "plat" }, el("i", { style: "background:#2aa3df" }), "Telegram (التنبيهات)")), pill),
+    el("p", { class: "muted small" }, "بوت واحد للفريق كله. بعد إعداده، يربط كل عضو تيليجرام الخاص به من قائمة حسابه (الصورة أعلى الصفحة) ← ربط تيليجرام."),
+    el("label", { class: "field", for: tok.id }, "Bot Token", tok),
+    el("div", { class: "actions" }, save, k.set ? el("button", { class: "btn-danger", type: "button", onclick: () => reset({ k: "telegram" }) }, "حذف البوت") : null,
+      st.bot ? el("a", { class: "btn", href: `https://t.me/${st.bot}`, target: "_blank", rel: "noopener" }, "فتح البوت") : null),
+    st.error && k.set ? notice("bad", "تعذّر الوصول للبوت: " + st.error) : null,
+    el("details", { class: "more" }, el("summary", {}, "كيف أنشئ البوت؟"), el("ol", { class: "steps" },
+      el("li", {}, "افتح تيليجرام وابحث عن @BotFather ثم أرسل /newbot."),
+      el("li", {}, "اختر اسمًا للبوت (مثل: audit تنبيهات)، ثم اسم مستخدم ينتهي بـ bot (مثل: myagency_audit_bot)."),
+      el("li", {}, "سيرسل لك BotFather التوكن (مثل 123456789:AA…). انسخه والصقه هنا واضغط حفظ."),
+      el("li", {}, "لاستقبال التنبيهات في مجموعة: أضف البوت للمجموعة، ثم استخدم \"ربط مجموعة\" من قائمة حسابك."))));
 }
 
 async function reset(p) {
-  if (!await confirmDialog({ title: "مسح إعدادات الربط؟", body: `سيُحذف App ID وSecret وربط ${PMAP[p.k].label}، وسيتوقف جلب الأرقام من هذه المنصة حتى تعيد ربطها.`, ok: "مسح" })) return;
+  if (!await confirmDialog({ title: "مسح إعدادات الربط؟", body: `سيُحذف App ID وSecret وربط ${PMAP[p.k]?.label || "Telegram"}، وسيتوقف جلب الأرقام من هذه المنصة حتى تعيد ربطها.`, ok: "مسح" })) return;
   try { await api("/api/settings?platform=" + p.k, { method: "DELETE" }); toast("تم الحذف", "good"); load(); } catch (e) { toast(e.message, "bad"); }
 }

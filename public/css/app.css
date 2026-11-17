@@ -528,3 +528,13 @@ dialog.sm{max-width:min(440px,calc(100vw - 24px))}
   .toolbar select{flex:1 1 30%;min-width:0}
   .toolbar .check-chip,.toolbar .seg{flex:1 1 auto;justify-content:center}
 }
+.menu-item{width:100%;border:0;background:transparent;min-height:0;justify-content:flex-start;font-weight:400;font-family:inherit}
+.menu-item:hover{border:0}
+.tg-chat{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px}
+.tg-chat .grow{flex:1;min-width:0;display:grid}
+.tg-chat .grow span{font-size:12px;color:var(--muted)}
+.switch{position:relative;display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:13px}
+.alert-rules{display:grid;gap:14px;border-top:1px solid var(--line);padding-top:18px;margin-top:18px}
+.alert-rules .checks{display:flex;flex-wrap:wrap;gap:8px}
+.preview{display:grid;gap:8px}
+.preview pre{margin:0;white-space:pre-wrap;font-family:var(--f-body);font-size:13px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;line-height:1.8}

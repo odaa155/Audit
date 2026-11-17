@@ -1,6 +1,7 @@
 // App shell: routing, top tabs, client/date-range context, realtime subscriptions, boot.
 import { $, el, initial, monthLabel, lsGet, lsSet, toast, status, PMAP, emptyState, icon, todayISO } from "./lib.js";
 import { state, hooks, client, isAdmin, isNewEdit, monthsAvailable } from "./store.js";
+import { mountTelegram } from "./tg.js";
 import { initRange, mountPicker, drawPickerLabel, setRange, monthsIn, prevRange } from "./range.js";
 import * as overview from "./views/overview.js";
 import * as performance from "./views/performance.js";
@@ -41,10 +42,12 @@ document.addEventListener("click", () => openMenu(false));
 document.addEventListener("keydown", e => { if (e.key === "Escape") openMenu(false); });
 
 // ---------- routing ----------
+let pendingClient = null; // from links like #overview?client=ID (e.g. Telegram alerts)
 function route() {
   let v = (location.hash || "#overview").slice(1);
   if (v.includes("?")) {
     const [h, qs] = v.split("?"); v = h; const q = new URLSearchParams(qs);
+    if (q.get("client")) { pendingClient = q.get("client"); if (state.loadedClients && state.clients.some(c => c.id === pendingClient)) { const id = pendingClient; pendingClient = null; setTimeout(() => selectClient(id)); } }
     if (q.get("conn")) { const lbl = PMAP[q.get("conn")]?.label || q.get("conn"); setTimeout(() => toast(q.get("ok") === "1" ? `تم ربط ${lbl} بنجاح` : `تعذّر ربط ${lbl}: ${q.get("msg") || ""}`, q.get("ok") === "1" ? "good" : "bad"), 300); }
     history.replaceState(null, "", "#" + h);
   }
@@ -149,7 +152,7 @@ function subscribeClient() {
 }
 
 // ---------- boot ----------
-initRange(); mountPicker();
+initRange(); mountPicker(); mountTelegram();
 for (const V of Object.values(VIEWS)) V.mod.init();
 route();
 (async function boot() {
@@ -177,6 +180,7 @@ route();
       if (pick) { state.cid = null; selectClient(pick.id); return; }
       else if (state.cid) { state.cid = null; subscribeClient(); }
     }
+    if (pendingClient && state.clients.some(c => c.id === pendingClient)) { const id = pendingClient; pendingClient = null; if (id !== state.cid) { selectClient(id); return; } }
     renderAll();
   }, () => status("حدثت مشكلة في تحميل العملاء. يُرجى تحديث الصفحة.", "bad"));
   if (state.uid) { try { const st = await db.doc(`data/users/${state.uid}/state`).get(); state.lastSeen = st.exists ? (st.data().lastSeen || null) : new Date(0).toISOString(); renderAll(); } catch (_) {} }

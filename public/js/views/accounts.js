@@ -1,5 +1,5 @@
 // Accounts & clients: manage clients, link ad accounts to the selected client, browse connected platform accounts.
-import { $, el, icon, slug, initial, platChip, PMAP, FX_DEFAULT, fillPlatSelect, fillCurSelect, toast, openDialog, closeDialog, confirmDialog, emptyState, notice } from "../lib.js";
+import { api, busy, $, el, icon, slug, initial, platChip, PMAP, FX_DEFAULT, fillPlatSelect, fillCurSelect, toast, openDialog, closeDialog, confirmDialog, emptyState, notice } from "../lib.js";
 import { runSync } from "./performance.js";
 import { state, hooks, client, cur, guard, safe, isAdmin, callMcp, mcpErrorText } from "../store.js";
 
@@ -52,6 +52,54 @@ export function render() {
   });
   t.append(tb);
   renderConnectors();
+  if (c && !$("alertRules").contains(document.activeElement)) renderAlertRules(c);
+}
+
+// ---------- Telegram alert rules for this client ----------
+const RULE_DEFAULTS = { enabled: true, roasMin: null, roasDays: 3, cpaMax: null, budgetPace: true, targetPace: true, spendStop: true, syncFail: true, daily: false };
+function renderAlertRules(c) {
+  const box = $("alertRules"); box.innerHTML = "";
+  const R = { ...RULE_DEFAULTS, ...(c.alerts || {}) }, C = c.currency || "SAR";
+  const ym = new Date().toISOString().slice(0, 7), tRoas = state.targets[ym]?.roas;
+  const chk = (key, label, hint) => { const i = el("input", { type: "checkbox", "data-k": key }); i.checked = !!R[key]; return el("label", { class: "check-chip", title: hint || "" }, i, label); };
+  const en = el("input", { type: "checkbox", id: "arEnabled" }); en.checked = !!R.enabled;
+  const roas = el("input", { type: "number", id: "arRoas", min: "0", step: "0.1", dir: "ltr", value: R.roasMin ?? "", placeholder: tRoas ? `تلقائي: ${(tRoas * 0.8).toFixed(2)}` : "مثال: 2" });
+  const days = el("select", { id: "arDays" }, ...[1, 2, 3, 5, 7].map(d => el("option", { value: d }, d === 1 ? "أمس فقط" : `آخر ${d} أيام`))); days.value = R.roasDays;
+  const cpa = el("input", { type: "number", id: "arCpa", min: "0", step: "1", dir: "ltr", value: R.cpaMax ?? "", placeholder: "اختياري" });
+  const preview = el("div", { class: "preview" });
+  const save = el("button", { type: "button", class: "btn-primary" }, "حفظ إعدادات التنبيه");
+  const prev = el("button", { type: "button" }, icon("bell", "ic sm"), "معاينة التنبيهات الآن");
+  save.disabled = !state.canWrite;
+  save.addEventListener("click", async () => {
+    if (!guard()) return;
+    const alerts = { enabled: en.checked, roasMin: roas.value === "" ? null : +roas.value, roasDays: +days.value, cpaMax: cpa.value === "" ? null : +cpa.value };
+    for (const i of box.querySelectorAll("[data-k]")) alerts[i.dataset.k] = i.checked;
+    document.activeElement?.blur();
+    await safe(state.db.doc("clients/" + c.id).update({ alerts }), "تم حفظ إعدادات التنبيه");
+  });
+  prev.addEventListener("click", () => busy(prev, async () => {
+    preview.innerHTML = "";
+    try {
+      const r = await api("/api/telegram/preview?client=" + encodeURIComponent(c.id));
+      preview.append(el("div", { class: "muted small" }, r.recipients ? `سيصل التنبيه إلى ${r.recipients} محادثة مربوطة.` : "لا توجد محادثات مربوطة تستقبل تنبيهات هذا العميل. اربط تيليجرام من قائمة حسابك (الصورة أعلى الصفحة)."));
+      if (!r.alerts.length) preview.append(notice("good", "لا توجد تنبيهات حاليًا بناءً على آخر الأرقام المحفوظة."));
+      for (const a of r.alerts) preview.append(el("pre", {}, a.text));
+      if (R.daily && r.summary) preview.append(el("div", { class: "muted small" }, "شكل الملخص اليومي:"), el("pre", {}, r.summary));
+    } catch (e) { preview.append(notice("bad", e.message)); }
+  }));
+  box.append(
+    el("div", { class: "card-head", style: "margin:0" }, el("div", {}, el("h3", {}, "تنبيهات تيليجرام"), el("p", { class: "sub" }, "تُفحص بعد كل جلب تلقائي للأرقام (كل 3 ساعات)، ويُرسل كل تنبيه مرة واحدة في اليوم.")), el("label", { class: "check-chip" }, en, "مفعّلة لهذا العميل")),
+    el("div", { class: "form-grid" },
+      el("label", { class: "field", for: "arRoas" }, "نبّهني إذا قل ROAS عن", roas, el("span", { class: "hint" }, tRoas ? "اتركه فارغًا لاستخدام 80% من ROAS المستهدف" : "اتركه فارغًا للإيقاف")),
+      el("label", { class: "field", for: "arDays" }, "على مدى", days),
+      el("label", { class: "field", for: "arCpa" }, `أو زادت تكلفة الطلب أمس عن (${C})`, cpa)),
+    el("div", { class: "checks" },
+      chk("budgetPace", "الصرف أسرع من الميزانية", "عندما تتجاوز نسبة الصرف من الميزانية نسبة الأيام المنقضية بأكثر من 15%"),
+      chk("targetPace", "التأخر عن هدف المبيعات", "عندما يقل المحقق عن 85% من المتوقع حسب الأيام المنقضية"),
+      chk("spendStop", "توقف الصرف على منصة", "منصة كان عليها صرف ثم أصبح صفرًا أمس"),
+      chk("syncFail", "فشل جلب الأرقام أو انتهاء الربط", "تصل للمدير فقط"),
+      chk("daily", "ملخص يومي الساعة 9 صباحًا", "أرقام أمس لكل منصة مع نسبة تحقيق الهدف")),
+    el("div", { class: "actions" }, save, prev), preview);
 }
 
 function renderConnectors() {
