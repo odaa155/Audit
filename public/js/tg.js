@@ -55,7 +55,7 @@ async function draw(linkInfo) {
   });
   linkPrivate.addEventListener("click", () => go("private", linkPrivate));
   linkGroup.addEventListener("click", () => go("group", linkGroup));
-  test.addEventListener("click", () => busy(test, async () => { try { const r = await api("/api/telegram/test", { method: "POST" }); toast(r.sent ? `تم الإرسال إلى ${r.sent} محادثة` : "تعذّر الإرسال", r.sent ? "good" : "bad"); } catch (e) { toast(e.message, "bad"); } }));
+  test.addEventListener("click", () => busy(test, async () => { toast("جارٍ الإرسال…"); try { const r = await api("/api/telegram/test", { method: "POST" }); toast(r.sent ? `تم الإرسال إلى ${r.sent} محادثة خلال ${(r.ms / 1000).toFixed(1)} ثانية` : "تعذّر الإرسال", r.sent ? "good" : "bad"); } catch (e) { toast(e.message, "bad"); } }));
 
   body.append(el("div", { class: "muted small", style: "display:flex;flex-wrap:wrap;gap:6px 16px" }, el("span", {}, "البوت: ", el("a", { href: `https://t.me/${st.bot}`, target: "_blank", rel: "noopener", class: "ltr" }, "@" + st.bot)), statusLine(st.diag)), list,
     el("div", { class: "actions" }, linkPrivate, linkGroup, test));

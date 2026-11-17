@@ -1,4 +1,7 @@
 import http from 'node:http';
+import dns from 'node:dns';
+// Docker hosts often have no IPv6 route: try IPv4 first so outbound calls (Telegram, ad platforms) don't wait on IPv6
+dns.setDefaultResultOrder('ipv4first');
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -154,10 +157,10 @@ const server = http.createServer(async (req, res) => {
           return send(res, 200, { code, bot, url: `https://t.me/${bot}?start=${code}`, groupUrl: `https://t.me/${bot}?startgroup=${code}` });
         }
         if (p === '/api/telegram/test' && req.method === 'POST') {
-          const chats = tg.links(me.id).filter(l => l.enabled); let ok = 0;
-          for (const l of chats) if (await tg.send(l.chat_id, `🔔 رسالة تجربة من audit
-مرحبًا ${me.name}، التنبيهات تعمل في هذه المحادثة ✅`)) ok++;
-          return send(res, 200, { sent: ok, total: chats.length });
+          const chats = tg.links(me.id).filter(l => l.enabled), t0 = Date.now();
+          const msg = `🔔 رسالة تجربة من audit\nمرحبًا ${me.name}، التنبيهات تعمل في هذه المحادثة ✅`;
+          const ok = (await Promise.all(chats.map(l => tg.send(l.chat_id, msg)))).filter(Boolean).length; // all chats at once
+          return send(res, 200, { sent: ok, total: chats.length, ms: Date.now() - t0 });
         }
         if (p === '/api/telegram/chat') {
           const b = req.method === 'PUT' ? await body(req) : { chat_id: q.get('chat_id') };

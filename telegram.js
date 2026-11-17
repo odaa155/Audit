@@ -29,9 +29,15 @@ CREATE TABLE IF NOT EXISTS alert_state (key TEXT PRIMARY KEY, at TEXT NOT NULL);
     if (!j.ok) throw Object.assign(new Error(j.description || `Telegram ${r.status}`), { code: j.error_code || r.status });
     return j.result;
   }
-  async function me() { if (!token()) return null; try { botInfo = await call('getMe'); return botInfo; } catch (e) { botInfo = null; throw e; } }
+  // bot info is cached (10 min, or until the token changes) so opening the dialog doesn't wait on Telegram
+  let meAt = 0, meTok = null;
+  async function me() {
+    const t = token(); if (!t) return null;
+    if (botInfo && meTok === t && Date.now() - meAt < 10 * 60e3) return botInfo;
+    try { botInfo = await call('getMe', {}, 8000); meTok = t; meAt = Date.now(); return botInfo; } catch (e) { botInfo = null; throw e; }
+  }
   async function send(chatId, html) {
-    try { await call('sendMessage', { chat_id: chatId, text: html, parse_mode: 'HTML', disable_web_page_preview: true }); return true; }
+    try { await call('sendMessage', { chat_id: chatId, text: html, parse_mode: 'HTML', disable_web_page_preview: true }, 10000); return true; }
     catch (e) {
       console.error('telegram send', chatId, e.message);
       if (e.code === 403 || /blocked|kicked|chat not found|deactivated/i.test(e.message)) db.prepare('UPDATE tg_links SET enabled=0 WHERE chat_id=?').run(String(chatId));
@@ -197,7 +203,7 @@ CREATE TABLE IF NOT EXISTS alert_state (key TEXT PRIMARY KEY, at TEXT NOT NULL);
       const chats = chatsForClient(clientId, { adminsOnly: a.adminsOnly });
       if (!chats.length || !once(a.key, a.everyH)) continue;
       const text = `${a.text}\n\n<a href="${link(clientId, a.view)}">فتح في audit ←</a>`;
-      for (const ch of chats) if (await send(ch, text)) sent++;
+      sent += (await Promise.all(chats.map(ch => send(ch, text)))).filter(Boolean).length;
     }
     return sent;
   }
@@ -220,7 +226,7 @@ CREATE TABLE IF NOT EXISTS alert_state (key TEXT PRIMARY KEY, at TEXT NOT NULL);
       const c = JSON.parse(r.data), R = { ...DEFAULT_RULES, ...(c.alerts || {}) };
       if (!R.enabled || !R.daily || !once(`${r.id}|daily|${date}`, 20)) continue;
       const text = summaryFor(r.id); if (!text) continue;
-      for (const ch of chatsForClient(r.id)) await send(ch, `${text}\n\n<a href="${link(r.id)}">فتح في audit ←</a>`);
+      await Promise.all(chatsForClient(r.id).map(ch => send(ch, `${text}\n\n<a href="${link(r.id)}">فتح في audit ←</a>`)));
     }
   }
 
