@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS alert_state (key TEXT PRIMARY KEY, at TEXT NOT NULL);
   async function handleUpdate(u) {
     const m = u.message || u.channel_post; if (!m?.text) return;
     const chat = m.chat, txt = m.text.trim();
-    const mt = txt.match(/^\/start(?:@\w+)?\s+([a-f0-9]{12})$/i) || txt.match(/^\/link(?:@\w+)?\s+([a-f0-9]{12})$/i);
+    const mt = txt.match(/^(?:\/(?:start|link)(?:@\w+)?\s+)?([a-f0-9]{12})$/i);
     if (mt) {
       const row = db.prepare('SELECT * FROM tg_codes WHERE code=?').get(mt[1].toLowerCase());
       if (!row || row.exp < Date.now()) return send(chat.id, 'رمز الربط غير صالح أو انتهت صلاحيته. افتح التطبيق واضغط "ربط تيليجرام" للحصول على رابط جديد.');
@@ -64,19 +64,51 @@ CREATE TABLE IF NOT EXISTS alert_state (key TEXT PRIMARY KEY, at TEXT NOT NULL);
     if (/^\/resume(?:@\w+)?$/i.test(txt)) { const r = db.prepare('UPDATE tg_links SET enabled=1 WHERE chat_id=?').run(String(chat.id)); return send(chat.id, r.changes ? 'تمت إعادة تفعيل التنبيهات ✅' : 'هذه المحادثة غير مربوطة بالتطبيق.'); }
     if (/^\/start(?:@\w+)?$/i.test(txt) && chat.type === 'private') return send(chat.id, 'أهلًا 👋 لربط هذه المحادثة، افتح audit واضغط على صورتك ← "ربط تيليجرام".');
   }
-  async function pollLoop() {
+  // Receiving updates: webhook when the site is public HTTPS (robust in containers), else long polling.
+  // Falls back to polling automatically if Telegram can't deliver to the webhook.
+  const diag = { mode: null, lastUpdateAt: null, lastError: null, lastErrorAt: null, webhookUrl: null };
+  const setErr = e => { diag.lastError = String(e?.message || e).slice(0, 300); diag.lastErrorAt = new Date().toISOString(); };
+  const secret = () => crypto.createHash('sha256').update('audit-tg|' + token()).digest('hex').slice(0, 40);
+  const checkSecret = h => !!token() && typeof h === 'string' && h.length === 40 && crypto.timingSafeEqual(Buffer.from(h), Buffer.from(secret()));
+  const wantWebhook = () => BASE.startsWith('https://') && process.env.TELEGRAM_POLLING !== '1';
+  async function receive(u) { diag.lastUpdateAt = new Date().toISOString(); try { await handleUpdate(u); } catch (e) { console.error('tg update', e.message); setErr(e); } }
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  let curTok = null, lastCheck = 0, forcePolling = false;
+  async function loop() {
     if (polling) return; polling = true;
-    let wait = 2000, cleared = false;
+    let wait = 2000;
     while (true) {
-      if (!token()) { await new Promise(r => setTimeout(r, 3000)); continue; }
+      const t = token();
+      if (!t) { diag.mode = null; curTok = null; await sleep(3000); continue; }
+      if (t !== curTok) { curTok = t; diag.mode = null; forcePolling = false; offset = 0; }
       try {
-        if (!cleared) { await call('deleteWebhook', {}); cleared = true; }
+        if (!diag.mode) {
+          if (wantWebhook() && !forcePolling) {
+            const url = `${BASE}/api/telegram/hook`;
+            await call('setWebhook', { url, secret_token: secret(), allowed_updates: ['message', 'channel_post'], max_connections: 10 });
+            diag.mode = 'webhook'; diag.webhookUrl = url; lastCheck = Date.now(); console.log('telegram: webhook mode', url);
+          } else { await call('deleteWebhook', {}); diag.mode = 'polling'; diag.webhookUrl = null; console.log('telegram: polling mode'); }
+        }
+        if (diag.mode === 'webhook') {
+          await sleep(5000);
+          if (Date.now() - lastCheck > 60000) {
+            lastCheck = Date.now();
+            const info = await call('getWebhookInfo', {});
+            if (info.url !== diag.webhookUrl) { diag.mode = null; continue; } // replaced elsewhere: set again
+            if (info.last_error_date && Date.now() / 1000 - info.last_error_date < 600 && info.pending_update_count > 0) {
+              setErr('Telegram لا يستطيع الوصول للموقع: ' + (info.last_error_message || '')); forcePolling = true; diag.mode = null;
+            }
+          }
+          continue;
+        }
         const ups = await call('getUpdates', { offset, timeout: 25, allowed_updates: ['message', 'channel_post'] }, 35000);
-        for (const u of ups) { offset = u.update_id + 1; try { await handleUpdate(u); } catch (e) { console.error('tg update', e.message); } }
+        for (const u of ups) { offset = u.update_id + 1; await receive(u); }
         wait = 2000;
       } catch (e) {
-        if (e.code !== 'not_configured') console.error('tg poll', e.message);
-        await new Promise(r => setTimeout(r, wait)); wait = Math.min(wait * 2, 60000);
+        if (e.code !== 'not_configured') { console.error('tg loop', e.message); setErr(e); }
+        if (diag.mode === null && wantWebhook() && !forcePolling) forcePolling = true; // setWebhook failed: use polling
+        if (e.code === 409 && diag.mode === 'polling') diag.mode = null; // a webhook was set elsewhere
+        await sleep(wait); wait = Math.min(wait * 2, 60000);
       }
     }
   }
@@ -125,7 +157,7 @@ CREATE TABLE IF NOT EXISTS alert_state (key TEXT PRIMARY KEY, at TEXT NOT NULL);
       const N = Math.min(Math.max(+R.roasDays || 3, 1), 14), s = sum(daily, addDays(yday, -(N - 1)), yday);
       if (s.days >= Math.min(N, 2) && s.spend > 0 && s.roas < roasMin) {
         const worst = Object.keys(PL).map(p => ({ p, ...sum(daily, addDays(yday, -(N - 1)), yday, p) })).filter(x => x.spend > 0).sort((a, b) => (a.roas ?? 0) - (b.roas ?? 0))[0];
-        push(`roas|${yday}`, 20, `📉 <b>${name}</b>: ROAS منخفض\nآخر ${N} أيام: <b>${n2(s.roas)}</b> (الحد ${n2(roasMin)})\nالصرف ${n0(s.spend)} ${cur} · المبيعات ${n0(s.sales)} ${cur}${worst ? `\nالأضعف: ${PL[worst.p]} بـ ROAS ${n2(worst.roas)}` : ''}`);
+        push(`roas|${yday}`, 20, `📉 <b>${name}</b>: ROAS منخفض\n${N === 1 ? 'أمس' : `آخر ${N} أيام`}: <b>${n2(s.roas)}</b> (الحد ${n2(roasMin)})\nالصرف ${n0(s.spend)} ${cur} · المبيعات ${n0(s.sales)} ${cur}${worst ? `\nالأضعف: ${PL[worst.p]} بـ ROAS ${n2(worst.roas)}` : ''}`);
       }
     }
     // 2) CPA above max (yesterday)
@@ -192,9 +224,9 @@ CREATE TABLE IF NOT EXISTS alert_state (key TEXT PRIMARY KEY, at TEXT NOT NULL);
     }
   }
 
-  function start() { pollLoop(); setInterval(() => dailySummaries().catch(e => console.error('tg daily', e.message)), 10 * 60e3); }
+  function start() { loop(); setInterval(() => dailySummaries().catch(e => console.error('tg daily', e.message)), 10 * 60e3); }
 
-  return { me, send, newCode, links, runClient, evaluate, summaryFor, chatsForClient, start, botName: () => botInfo?.username || null,
+  return { receive, checkSecret, diag: () => ({ ...diag }), me, send, newCode, links, runClient, evaluate, summaryFor, chatsForClient, start, botName: () => botInfo?.username || null,
     setEnabled: (userId, chatId, on) => db.prepare('UPDATE tg_links SET enabled=? WHERE chat_id=? AND user_id=?').run(on ? 1 : 0, String(chatId), userId).changes,
     unlink: (userId, chatId) => db.prepare('DELETE FROM tg_links WHERE chat_id=? AND user_id=?').run(String(chatId), userId).changes,
     handleUpdate };

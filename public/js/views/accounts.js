@@ -81,7 +81,8 @@ function renderAlertRules(c) {
     preview.innerHTML = "";
     try {
       const r = await api("/api/telegram/preview?client=" + encodeURIComponent(c.id));
-      preview.append(el("div", { class: "muted small" }, r.recipients ? `سيصل التنبيه إلى ${r.recipients} محادثة مربوطة.` : "لا توجد محادثات مربوطة تستقبل تنبيهات هذا العميل. اربط تيليجرام من قائمة حسابك (الصورة أعلى الصفحة)."));
+      preview.append(r.recipients ? el("div", { class: "muted small" }, `سيصل التنبيه إلى ${r.recipients} محادثة مربوطة.`)
+        : notice("warn", "لا توجد محادثات مربوطة تستقبل تنبيهات هذا العميل. ", el("button", { type: "button", class: "btn-sm", onclick: () => $("tgMenu").click() }, icon("send", "ic sm"), "ربط تيليجرام")));
       if (!r.alerts.length) preview.append(notice("good", "لا توجد تنبيهات حاليًا بناءً على آخر الأرقام المحفوظة."));
       for (const a of r.alerts) preview.append(el("pre", {}, a.text));
       if (R.daily && r.summary) preview.append(el("div", { class: "muted small" }, "شكل الملخص اليومي:"), el("pre", {}, r.summary));

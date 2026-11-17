@@ -109,6 +109,11 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/logout') { const lu = sessionUser(req); if (lu) audit(req, lu.id, 'logout'); res.writeHead(302, { Location: '/login.html', 'Set-Cookie': 'audit_s=; Path=/; Max-Age=0' }); return res.end(); }
     if (p === '/healthz') return send(res, 200, { ok: true });
 
+    // Telegram webhook (public; verified with the secret token header)
+    if (p === '/api/telegram/hook' && req.method === 'POST') {
+      if (!tg.checkSecret(req.headers['x-telegram-bot-api-secret-token'])) return send(res, 403, { error: 'forbidden' });
+      const u = await body(req); tg.receive(u); return send(res, 200, { ok: true });
+    }
     if (p.startsWith('/api/')) {
       const me = sessionUser(req); if (!me) return send(res, 401, { error: 'login required' });
       if (p === '/api/me') return send(res, 200, pub(me));
@@ -140,7 +145,7 @@ const server = http.createServer(async (req, res) => {
       if (p.startsWith('/api/telegram')) {
         if (p === '/api/telegram' && req.method === 'GET') {
           let bot = null, error = null; try { bot = (await tg.me())?.username || null; } catch (e) { error = e.message; }
-          return send(res, 200, { configured: !!getSetting('TELEGRAM_BOT_TOKEN'), bot, error, links: tg.links(me.id), isAdmin: me.role === 'admin' });
+          return send(res, 200, { configured: !!getSetting('TELEGRAM_BOT_TOKEN'), bot, error, links: tg.links(me.id), isAdmin: me.role === 'admin', diag: tg.diag() });
         }
         if (p === '/api/telegram/link' && req.method === 'POST') {
           let bot; try { bot = (await tg.me())?.username; } catch (e) { return send(res, 400, { error: 'تعذّر الوصول للبوت: ' + e.message }); }

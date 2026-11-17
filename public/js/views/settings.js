@@ -70,6 +70,8 @@ async function telegramCard(s) {
     el("div", { class: "actions" }, save, k.set ? el("button", { class: "btn-danger", type: "button", onclick: () => reset({ k: "telegram" }) }, "حذف البوت") : null,
       st.bot ? el("a", { class: "btn", href: `https://t.me/${st.bot}`, target: "_blank", rel: "noopener" }, "فتح البوت") : null),
     st.error && k.set ? notice("bad", "تعذّر الوصول للبوت: " + st.error) : null,
+    st.bot && st.diag ? el("p", { class: "muted small" }, `طريقة الاستقبال: ${st.diag.mode === "webhook" ? "Webhook" : st.diag.mode === "polling" ? "Polling" : "جارٍ الاتصال…"}`, st.diag.lastUpdateAt ? ` · آخر رسالة من تيليجرام ${new Date(st.diag.lastUpdateAt).toLocaleString("en-GB")}` : " · لم تصل رسائل بعد") : null,
+    st.diag?.lastError ? notice("warn", "آخر خطأ في الاتصال بتيليجرام: " + st.diag.lastError) : null,
     el("details", { class: "more" }, el("summary", {}, "كيف أنشئ البوت؟"), el("ol", { class: "steps" },
       el("li", {}, "افتح تيليجرام وابحث عن @BotFather ثم أرسل /newbot."),
       el("li", {}, "اختر اسمًا للبوت (مثل: audit تنبيهات)، ثم اسم مستخدم ينتهي بـ bot (مثل: myagency_audit_bot)."),

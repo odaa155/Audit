@@ -12,6 +12,14 @@ async function refreshMenuState() {
 }
 async function open() { openDialog("tgDlg"); await draw(); }
 
+function statusLine(d) {
+  if (!d) return null;
+  const ago = iso => { const s = (Date.now() - new Date(iso)) / 1000; return s < 60 ? "الآن" : s < 3600 ? `منذ ${Math.round(s / 60)} دقيقة` : s < 86400 ? `منذ ${Math.round(s / 3600)} ساعة` : `منذ ${Math.round(s / 86400)} يوم`; };
+  const mode = d.mode === "webhook" ? "Webhook" : d.mode === "polling" ? "Polling" : "غير متصل";
+  return el("span", { title: d.lastError ? "آخر خطأ: " + d.lastError : "" }, `الاتصال: ${mode}`, d.lastUpdateAt ? ` · آخر رسالة من تيليجرام ${ago(d.lastUpdateAt)}` : " · لم تصل رسائل بعد",
+    d.lastError && (!d.lastUpdateAt || d.lastErrorAt > d.lastUpdateAt) ? el("span", { style: "color:var(--bad)" }, ` · خطأ: ${d.lastError}`) : null);
+}
+
 async function draw(linkInfo) {
   const body = $("tgBody"); let st;
   try { st = await api("/api/telegram"); } catch (e) { body.innerHTML = ""; body.append(notice("bad", e.message)); return; }
@@ -49,11 +57,17 @@ async function draw(linkInfo) {
   linkGroup.addEventListener("click", () => go("group", linkGroup));
   test.addEventListener("click", () => busy(test, async () => { try { const r = await api("/api/telegram/test", { method: "POST" }); toast(r.sent ? `تم الإرسال إلى ${r.sent} محادثة` : "تعذّر الإرسال", r.sent ? "good" : "bad"); } catch (e) { toast(e.message, "bad"); } }));
 
-  body.append(el("div", { class: "muted small" }, "البوت: ", el("a", { href: `https://t.me/${st.bot}`, target: "_blank", rel: "noopener", class: "ltr" }, "@" + st.bot)), list,
+  body.append(el("div", { class: "muted small", style: "display:flex;flex-wrap:wrap;gap:6px 16px" }, el("span", {}, "البوت: ", el("a", { href: `https://t.me/${st.bot}`, target: "_blank", rel: "noopener", class: "ltr" }, "@" + st.bot)), statusLine(st.diag)), list,
     el("div", { class: "actions" }, linkPrivate, linkGroup, test));
-  if (linkInfo) body.append(notice("info", el("div", { style: "display:grid;gap:6px" },
-    el("span", {}, "فُتح تيليجرام في نافذة جديدة. اضغط ", el("b", {}, "Start"), " (أو اختر المجموعة) وسيظهر الربط هنا تلقائيًا."),
-    el("span", { class: "small" }, "لم يفتح؟ أرسل للبوت هذه الرسالة: ", el("code", { class: "ltr" }, `/start ${linkInfo.code}`), " · صالح لمدة 30 دقيقة."))));
+  if (linkInfo) {
+    const cmd = `/start ${linkInfo.code}`;
+    const copy = el("button", { type: "button", class: "btn-sm", onclick: () => { navigator.clipboard?.writeText(cmd); toast("تم نسخ الأمر", "good"); } }, icon("copy", "ic sm"), "نسخ");
+    body.append(notice("info", el("div", { style: "display:grid;gap:8px" },
+      el("span", {}, "فُتح تيليجرام في نافذة جديدة. اضغط ", el("b", {}, "Start"), " (أو اختر المجموعة)، وسيظهر الربط هنا تلقائيًا خلال ثوانٍ."),
+      el("span", {}, "إذا كانت المحادثة مع البوت مفتوحة من قبل ولم يحدث شيء، ", el("b", {}, "انسخ هذا الأمر وأرسله للبوت"), " (أو في المجموعة):"),
+      el("div", { class: "redir" }, el("code", {}, cmd), copy),
+      el("span", { class: "small muted" }, "الرمز صالح لمدة 30 دقيقة."))));
+  }
   body.append(el("p", { class: "muted small" }, "تصلك تنبيهات العملاء المعيّنين لك فقط (والمدير يصله الكل). يمكنك إيقاف التنبيهات من تيليجرام بإرسال /stop."));
 }
 function startPolling(before) {
